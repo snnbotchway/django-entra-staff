@@ -136,3 +136,45 @@ def test_djangos_password_backend_must_not_be_installed():
     ]
 
     assert "entra_staff.E023" in check_ids(AUTHENTICATION_BACKENDS=backends)
+
+
+MICROSOFT_APP = {"client_id": "test-client-id", "secret": "test-secret"}
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"SOCIALACCOUNT_EMAIL_AUTHENTICATION": True},
+        {"SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT": True},
+        {
+            "SOCIALACCOUNT_PROVIDERS": {
+                "microsoft": {"APP": MICROSOFT_APP, "EMAIL_AUTHENTICATION": True}
+            }
+        },
+        {
+            "SOCIALACCOUNT_PROVIDERS": {
+                "microsoft": {"APP": {**MICROSOFT_APP, "settings": {"email_authentication": True}}}
+            }
+        },
+    ],
+    ids=["global", "auto-connect", "per-provider", "per-provider-app"],
+)
+def test_allauths_email_authentication_must_stay_off(overrides):
+    assert "entra_staff.E024" in check_ids(**overrides)
+
+
+def test_a_trusted_browser_must_not_skip_the_second_step():
+    assert "entra_staff.E025" in check_ids(MFA_TRUST_ENABLED=True)
+
+
+def test_preventing_enumeration_must_stay_on():
+    assert "entra_staff.E026" in check_ids(ACCOUNT_PREVENT_ENUMERATION=False)
+
+
+@pytest.mark.parametrize("prevent", [True, "strict"])
+def test_either_way_of_preventing_enumeration_passes(prevent):
+    assert "entra_staff.E026" not in check_ids(ACCOUNT_PREVENT_ENUMERATION=prevent)
+
+
+def test_the_packages_guarded_endpoints_must_win_over_allauths():
+    assert "entra_staff.E027" in check_ids(ROOT_URLCONF="tests.testapp.urls_allauth_headless")

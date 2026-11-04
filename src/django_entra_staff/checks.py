@@ -1,7 +1,9 @@
 from allauth import app_settings as allauth_settings
 from allauth.account import app_settings as account_settings
+from allauth.headless import app_settings as headless_settings
 from allauth.mfa import app_settings as mfa_settings
 from allauth.mfa.models import Authenticator
+from allauth.socialaccount import app_settings as socialaccount_settings
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.checks import Error, register
@@ -13,6 +15,7 @@ from .adapters import AccountAdapter, MFAAdapter, SocialAccountAdapter, dotted_p
 from .conf import MICROSOFT_NEEDS_TENANT_ID_MESSAGE, SETTING_NAME, CheckId, get_settings, validate
 from .models import AbstractAccount
 from .providers.microsoft.views import oauth2_callback
+from .views import GuardedManageEmailView, GuardedManageTOTPView, GuardedManageWebAuthnView
 
 PACKAGE_ADAPTER = dotted_path(AccountAdapter)
 PACKAGE_SOCIAL_ADAPTER = dotted_path(SocialAccountAdapter)
@@ -20,6 +23,15 @@ PACKAGE_MFA_ADAPTER = dotted_path(MFAAdapter)
 DJANGO_PASSWORD_BACKEND = "django.contrib.auth.backends.ModelBackend"
 PACKAGE_MICROSOFT_APP = "django_entra_staff.providers.microsoft"
 ALLAUTH_MICROSOFT_APP = "allauth.socialaccount.providers.microsoft"
+
+# The allauth endpoints the package guards, as (url name, the package's view,
+# the MFA type that mounts it or None). The package's URLs shadow allauth's, so
+# resolving the allauth path must land on the package's view.
+GUARDED_ENDPOINTS = (
+    ("account:manage_email", GuardedManageEmailView, None),
+    ("mfa:manage_totp", GuardedManageTOTPView, Authenticator.Type.TOTP),
+    ("mfa:manage_webauthn", GuardedManageWebAuthnView, Authenticator.Type.WEBAUTHN),
+)
 
 
 def _subclass_of(setting, base):
@@ -37,6 +49,41 @@ def _microsoft_callback_is_the_packages() -> bool:
     except (NoReverseMatch, Http404):
         return False
     return match.func is oauth2_callback
+
+
+def _email_authentication_is_on() -> bool:
+    """Whether allauth would match a Microsoft person to an Account by email on
+    its own, globally or for one provider (its settings or its app's)."""
+    if (
+        socialaccount_settings.EMAIL_AUTHENTICATION
+        or socialaccount_settings.EMAIL_AUTHENTICATION_AUTO_CONNECT
+    ):
+        return True
+    providers = getattr(settings, "SOCIALACCOUNT_PROVIDERS", {})
+    return any(
+        provider.get("EMAIL_AUTHENTICATION")
+        or provider.get("APP", {}).get("settings", {}).get("email_authentication")
+        for provider in providers.values()
+    )
+
+
+def _unguarded_endpoints() -> list[str]:
+    """The URL names whose allauth path resolves to something other than the
+    package's guarded view. An endpoint that is not mounted has nothing to
+    bypass."""
+    unguarded = []
+    for client in headless_settings.CLIENTS:
+        for name, view_class, mfa_type in GUARDED_ENDPOINTS:
+            if mfa_type is not None and mfa_type not in mfa_settings.SUPPORTED_TYPES:
+                continue
+            urlname = f"headless:{client}:{name}"
+            try:
+                match = resolve(reverse(urlname))
+            except (NoReverseMatch, Http404):
+                continue
+            if not issubclass(getattr(match.func, "view_class", object), view_class):
+                unguarded.append(urlname)
+    return unguarded
 
 
 @register()
@@ -162,6 +209,45 @@ def _allauth_path_errors():
                 " checks a password with no Microsoft link check. Use"
                 " allauth.account.auth_backends.AuthenticationBackend alone.",
                 id=CheckId.DJANGO_PASSWORD_BACKEND_ON.value,
+            )
+        )
+    return errors + _allauth_setting_errors()
+
+
+def _allauth_setting_errors():
+    """Settings that weaken the sign-in rules inside allauth's own flows."""
+    errors = []
+    if _email_authentication_is_on():
+        errors.append(
+            Error(
+                "SOCIALACCOUNT_EMAIL_AUTHENTICATION,"
+                " SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT and a provider's"
+                " EMAIL_AUTHENTICATION must stay off: allauth would sign a Microsoft person"
+                " in to the Account with their email, before the package links it.",
+                id=CheckId.EMAIL_AUTHENTICATION_ON.value,
+            )
+        )
+    if mfa_settings.TRUST_ENABLED:
+        errors.append(
+            Error(
+                "MFA_TRUST_ENABLED must stay off: a trusted browser would skip the Second step.",
+                id=CheckId.MFA_TRUST_ON.value,
+            )
+        )
+    if not account_settings.PREVENT_ENUMERATION:
+        errors.append(
+            Error(
+                "ACCOUNT_PREVENT_ENUMERATION must stay on: sign-in, Password reset and the"
+                " email endpoints must not tell whether an email has an Account.",
+                id=CheckId.PREVENT_ENUMERATION_OFF.value,
+            )
+        )
+    for urlname in _unguarded_endpoints():
+        errors.append(
+            Error(
+                f"{urlname} must resolve to the package's view: mount"
+                " django_entra_staff.urls before allauth's headless URLs, not allauth's alone.",
+                id=CheckId.GUARDED_ENDPOINT_NOT_THE_PACKAGES.value,
             )
         )
     return errors
