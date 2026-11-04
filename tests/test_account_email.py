@@ -1,9 +1,11 @@
 import pytest
 from allauth.account.models import EmailAddress
+from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.test import Client
 
-from tests.conftest import API, PASSWORD
+from tests.conftest import API, PASSWORD, error_code
 
 pytestmark = pytest.mark.django_db
 
@@ -56,3 +58,33 @@ def test_an_account_with_a_password_can_still_add_an_email(client, account):
     assert response.status_code == 200
     assert EmailAddress.objects.filter(user=account, email="jane@example.com").exists()
     assert [message.to for message in mail.outbox] == [["jane@example.com"]]
+
+
+def test_an_unverified_address_cannot_become_primary_and_capture_a_colleagues_sign_in(
+    microsoft, client, account
+):
+    client.force_login(account)
+    post_email(client, COLLEAGUE)
+
+    response = patch_primary(client, COLLEAGUE)
+
+    assert response.status_code == 400
+    assert response.json()["errors"][0]["code"] == "unverified_primary_email"
+    account.refresh_from_db()
+    assert account.email == "jane.doe@example.org"
+
+    colleague = microsoft.sign_in(Client(), email=COLLEAGUE)
+
+    assert error_code(colleague) == "invite_only"
+    assert not SocialAccount.objects.exists()
+
+
+def test_a_verified_address_can_become_primary(client, account):
+    client.force_login(account)
+    EmailAddress.objects.create(user=account, email="jane@example.com", verified=True)
+
+    response = patch_primary(client, "jane@example.com")
+
+    assert response.status_code == 200
+    account.refresh_from_db()
+    assert account.email == "jane@example.com"
