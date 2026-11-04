@@ -8,8 +8,7 @@ class AccountAdapter(DefaultAccountAdapter):
 
     def get_login_stages(self):
         stages = super().get_login_stages()
-        stages.insert(
-            stages.index("allauth.mfa.stages.AuthenticateStage") + 1,
-            "django_entra_staff.stages.SecondStepSetupStage",
-        )
+        index = stages.index("allauth.mfa.stages.AuthenticateStage")
+        stages[index] = "django_entra_staff.stages.SecondStepAuthenticateStage"
+        stages.insert(index + 1, "django_entra_staff.stages.SecondStepSetupStage")
         return stages

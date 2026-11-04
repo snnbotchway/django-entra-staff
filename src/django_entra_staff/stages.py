@@ -2,7 +2,18 @@ from allauth.account.internal.flows.login import get_authentication_records
 from allauth.account.stages import LoginStage
 from allauth.core.internal.httpkit import headed_redirect_response
 from allauth.mfa.models import Authenticator
+from allauth.mfa.stages import AuthenticateStage as AllauthAuthenticateStage
 from allauth.mfa.utils import is_mfa_enabled
+
+
+class SecondStepAuthenticateStage(AllauthAuthenticateStage):
+    """The Second step is a Password sign-in rule: Microsoft sign-in is never
+    asked for it, because Entra already runs its own checks."""
+
+    def _should_handle(self, request):
+        if _used_social_sign_in(request, self.login.user):
+            return False
+        return super()._should_handle(request)
 
 
 class SecondStepSetupStage(LoginStage):
