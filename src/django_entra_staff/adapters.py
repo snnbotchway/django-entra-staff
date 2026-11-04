@@ -35,6 +35,10 @@ class AccountAdapter(DefaultAccountAdapter):
             raise self.validation_error("use_microsoft_signin")
         return user
 
+    def send_password_reset_mail(self, user, email, context):
+        if user.has_usable_password() and not _has_microsoft_link(user):
+            super().send_password_reset_mail(user, email, context)
+
     def get_login_stages(self):
         stages = super().get_login_stages()
         index = stages.index("allauth.mfa.stages.AuthenticateStage")
