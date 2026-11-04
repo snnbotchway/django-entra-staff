@@ -102,3 +102,25 @@ def test_after_a_reset_the_next_sign_in_still_needs_the_second_step(client, seco
 
     assert response.status_code == 200
     assert is_signed_in(client)
+
+
+def test_a_reset_key_issued_before_linking_dies_when_the_account_is_linked(
+    client, microsoft, account
+):
+    request_reset(client, account.email)
+    key = reset_key_from_mail()
+
+    microsoft.sign_in(client, email=account.email)
+    account.refresh_from_db()
+    assert not account.has_usable_password()
+
+    response = client.post(
+        f"{API}/auth/password/reset",
+        {"key": key, "password": NEW_PASSWORD},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["errors"][0]["code"] == "invalid_password_reset"
+    account.refresh_from_db()
+    assert not account.has_usable_password()
