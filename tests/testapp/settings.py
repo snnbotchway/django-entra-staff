@@ -18,7 +18,7 @@ INSTALLED_APPS = [
     "allauth.mfa",
     "allauth.headless",
     "allauth.socialaccount",
-    "allauth.socialaccount.providers.microsoft",
+    "django_entra_staff.providers.microsoft",
     "django_entra_staff",
     "tests.testapp",
 ]
@@ -63,3 +63,8 @@ ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_EMAIL_VERIFICATION = "none"
 HEADLESS_ONLY = True
+HEADLESS_FRONTEND_URLS = {"socialaccount_login_error": "/next"}
+
+SOCIALACCOUNT_PROVIDERS = {
+    "microsoft": {"APP": {"client_id": "test-client-id", "secret": "test-secret"}}
+}
