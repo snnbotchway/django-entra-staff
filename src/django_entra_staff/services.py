@@ -107,9 +107,13 @@ def set_access_groups(account, access_groups: GroupNames, *, acting_account=None
     _replace_groups(account, names, acting_account)
 
 
+def _microsoft_links(account):
+    return SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account)
+
+
 def has_microsoft_link(account) -> bool:
     """Whether the Account has a Microsoft link, which rules out any password (ADR 0002)."""
-    return SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).exists()
+    return _microsoft_links(account).exists()
 
 
 def _set_active(account, active: bool, signal, acting_account) -> None:
@@ -167,7 +171,7 @@ def remove_microsoft_link(account, *, acting_account=None) -> bool:
     or IT gives them a Temporary password, which is allowed once the link is gone.
     Returns whether a link was removed; the signal is sent only then.
     """
-    removed = SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).delete()[0]
+    removed = _microsoft_links(account).delete()[0]
     if not removed:
         return False
     signals.microsoft_link_removed.send(
