@@ -8,12 +8,21 @@ from django.utils.translation import gettext_lazy as _
 
 from .conf import SignUpRule, get_settings
 from .signals import microsoft_link_made
+from .stages import MFA_AUTHENTICATE_STAGE, SecondStepStage
 
 
 class AccountAdapter(DefaultAccountAdapter):
     def is_open_for_signup(self, request):
         """Nobody creates their own Account with a password."""
         return False
+
+    def get_login_stages(self):
+        return [
+            SecondStepStage.__module__ + "." + SecondStepStage.__qualname__
+            if stage == MFA_AUTHENTICATE_STAGE
+            else stage
+            for stage in super().get_login_stages()
+        ]
 
 
 class SocialAccountAdapter(DefaultSocialAccountAdapter):

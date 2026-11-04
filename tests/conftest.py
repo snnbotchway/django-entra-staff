@@ -145,3 +145,18 @@ def microsoft():
 
     with mock.patch.object(requests.Session, "request", request):
         yield fake
+
+
+@pytest.fixture
+def link_made_events():
+    """The payloads of every microsoft_link_made sent during the test."""
+    from django_entra_staff.signals import microsoft_link_made
+
+    events = []
+
+    def receiver(sender, **kwargs):
+        events.append(kwargs)
+
+    microsoft_link_made.connect(receiver, weak=False)
+    yield events
+    microsoft_link_made.disconnect(receiver)

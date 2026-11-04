@@ -1,4 +1,5 @@
 import pytest
+from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 
@@ -24,11 +25,8 @@ def test_a_token_from_another_tenant_is_refused(microsoft, client):
 
 
 def test_first_sign_in_links_the_account_by_email_and_removes_the_password(
-    microsoft, client, account
+    microsoft, client, account, link_made_events
 ):
-    events = []
-    microsoft_link_made.connect(lambda sender, **kwargs: events.append(kwargs), weak=False)
-
     response = microsoft.sign_in(client, email="jane.doe@example.org")
 
     assert response.status_code == 302
@@ -38,12 +36,14 @@ def test_first_sign_in_links_the_account_by_email_and_removes_the_password(
     assert link.user == account
     account.refresh_from_db()
     assert not account.has_usable_password()
-    assert [(event["account"], event["acting_account"]) for event in events] == [(account, None)]
+    assert [(event["account"], event["acting_account"]) for event in link_made_events] == [
+        (account, None)
+    ]
 
 
-def test_second_sign_in_uses_the_link_and_ignores_the_email(microsoft, client, account):
-    events = []
-    microsoft_link_made.connect(lambda sender, **kwargs: events.append(kwargs), weak=False)
+def test_second_sign_in_uses_the_link_and_ignores_the_email(
+    microsoft, client, account, link_made_events
+):
     microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-1")
 
     response = microsoft.sign_in(client, email="renamed@example.org", uid="uid-1")
@@ -55,7 +55,7 @@ def test_second_sign_in_uses_the_link_and_ignores_the_email(microsoft, client, a
     assert account.email == "Jane.Doe@example.org"
     assert get_user_model().objects.count() == 1
     assert SocialAccount.objects.filter(provider="microsoft").count() == 1
-    assert len(events) == 1
+    assert len(link_made_events) == 1
 
 
 def test_an_account_already_linked_to_another_microsoft_person_is_refused(
@@ -112,9 +112,11 @@ def test_the_link_and_the_password_removal_are_one_transaction(microsoft, client
         raise RuntimeError("receiver failed")
 
     microsoft_link_made.connect(failing_receiver, weak=False)
-
-    with pytest.raises(RuntimeError):
-        microsoft.sign_in(client, email="jane.doe@example.org")
+    try:
+        with pytest.raises(RuntimeError):
+            microsoft.sign_in(client, email="jane.doe@example.org")
+    finally:
+        microsoft_link_made.disconnect(failing_receiver)
 
     assert not SocialAccount.objects.exists()
     account.refresh_from_db()
@@ -135,3 +137,12 @@ def test_connecting_a_microsoft_account_is_refused(microsoft, client, account):
     assert not SocialAccount.objects.exists()
     account.refresh_from_db()
     assert account.has_usable_password()
+
+
+def test_microsoft_sign_in_is_never_asked_for_the_second_step(microsoft, client, account):
+    TOTP.activate(account, generate_totp_secret())
+
+    response = microsoft.sign_in(client, email="jane.doe@example.org")
+
+    assert error_code(response) is None
+    assert is_signed_in(client)
