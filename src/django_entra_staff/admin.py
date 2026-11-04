@@ -5,7 +5,6 @@ service functions, so the admin cannot bypass the package's rules. The App
 registers it for its concrete Account model.
 """
 
-from allauth.mfa.utils import is_mfa_enabled
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
@@ -69,7 +68,11 @@ class AccountAdmin(admin.ModelAdmin):
         return False
 
     def get_queryset(self, request):
-        return super().get_queryset(request).prefetch_related("groups", "socialaccount_set")
+        return (
+            super()
+            .get_queryset(request)
+            .prefetch_related("groups", "socialaccount_set", "authenticator_set")
+        )
 
     @admin.display(description=_("Access groups"))
     def access_groups(self, account):
@@ -96,7 +99,8 @@ class AccountAdmin(admin.ModelAdmin):
 
     @admin.display(description=_("Second step status"))
     def second_step_status(self, account):
-        return _("Set up") if is_mfa_enabled(account, SECOND_STEP_TYPES) else _("Not set up")
+        held = {authenticator.type for authenticator in account.authenticator_set.all()}
+        return _("Set up") if held.intersection(SECOND_STEP_TYPES) else _("Not set up")
 
     @admin.display(description=_("Blocked state"))
     def blocked(self, account):
