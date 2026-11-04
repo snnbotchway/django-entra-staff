@@ -1,6 +1,6 @@
 # 08: Passkeys as a Second step
 
-Status: open
+Status: done
 Labels: ready-for-agent
 Blocked by: 02
 
