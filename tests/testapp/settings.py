@@ -79,3 +79,5 @@ HEADLESS_FRONTEND_URLS = {
 SOCIALACCOUNT_PROVIDERS = {
     "microsoft": {"APP": {"client_id": "test-client-id", "secret": "test-secret"}}
 }
+
+MAILERS = {"default": {"BACKEND": "django.core.mail.backends.locmem.EmailBackend"}}

@@ -141,7 +141,7 @@ LOGIN_URL = "/sign-in/"
 Also needed:
 
 - A cache shared by all workers (Redis, Memcached, a database cache). allauth's attempt limits, authenticator code replay protection and the Microsoft token replay protection live there. The per-process default is not enough with more than one worker.
-- Email sending (`EMAIL_*` settings) for Password reset and for allauth's notifications.
+- Email sending for Password reset and for allauth's notifications. On Django 6.1 and later configure it in `MAILERS` (a `"default"` entry with its `BACKEND`); without it Django warns, and Django 2028 will send no email at all.
 - Strong password rules in `AUTH_PASSWORD_VALIDATORS`. They apply to a Password reset and to replacing a Temporary password.
 
 ### Microsoft sign-in
