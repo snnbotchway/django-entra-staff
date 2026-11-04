@@ -9,6 +9,7 @@ from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
 from .conf import MICROSOFT_PROVIDER_ID, SignUpRule, get_settings
+from .errors import SignInErrorCode as Code
 from .services import has_microsoft_link, set_access_groups
 from .signals import account_signed_up_open_to_staff, microsoft_link_made
 from .stages import ReplacePasswordStage, SecondStepAuthenticateStage, SecondStepSetupStage
@@ -21,8 +22,8 @@ def dotted_path(cls) -> str:
 class AccountAdapter(DefaultAccountAdapter):
     error_messages = {
         **DefaultAccountAdapter.error_messages,
-        "use_microsoft_signin": _("Use Microsoft sign-in for this account."),
-        "email_change_not_supported": _("The email address of this account cannot be changed."),
+        Code.USE_MICROSOFT_SIGNIN: _("Use Microsoft sign-in for this account."),
+        Code.EMAIL_CHANGE_NOT_SUPPORTED: _("The email address of this account cannot be changed."),
     }
 
     def is_open_for_signup(self, request):
@@ -35,14 +36,14 @@ class AccountAdapter(DefaultAccountAdapter):
             # The password was right, so the refusal can say why; a wrong
             # password keeps allauth's ordinary error, so linked Accounts do
             # not stand out.
-            raise self.validation_error("use_microsoft_signin")
+            raise self.validation_error(Code.USE_MICROSOFT_SIGNIN)
         return user
 
     def clean_password(self, password, user=None):
         """Every way of adding a password (set, change, reset from a key) checks
         it here, so a linked Account never gets one back (ADR 0002)."""
         if user is not None and user.pk is not None and has_microsoft_link(user):
-            raise self.validation_error("use_microsoft_signin")
+            raise self.validation_error(Code.USE_MICROSOFT_SIGNIN)
         return super().clean_password(password, user=user)
 
     def send_password_reset_mail(self, user, email, context):
@@ -81,16 +82,16 @@ class MFAAdapter(DefaultMFAAdapter):
 class SocialAccountAdapter(DefaultSocialAccountAdapter):
     error_messages = {
         **DefaultSocialAccountAdapter.error_messages,
-        "invite_only": _("There is no account for this email address. Ask for access."),
-        "no_work_email": _(
+        Code.INVITE_ONLY: _("There is no account for this email address. Ask for access."),
+        Code.NO_WORK_EMAIL: _(
             "Your Microsoft account has no email address. Ask IT to add one, then try again."
         ),
-        "account_blocked": _("This account is blocked. Ask for access."),
-        "account_already_linked": _(
+        Code.ACCOUNT_BLOCKED: _("This account is blocked. Ask for access."),
+        Code.ACCOUNT_ALREADY_LINKED: _(
             "This email address is already linked to another Microsoft account."
         ),
-        "connect_not_supported": _("A Microsoft account cannot be connected this way."),
-        "disconnect_not_supported": _(
+        Code.CONNECT_NOT_SUPPORTED: _("A Microsoft account cannot be connected this way."),
+        Code.DISCONNECT_NOT_SUPPORTED: _(
             "Your Microsoft account cannot be removed here. Ask IT to remove it."
         ),
     }
@@ -100,7 +101,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         a person who removed their own could keep a password-only Account after
         leaving (ADR 0002)."""
         if account.provider == MICROSOFT_PROVIDER_ID:
-            raise self.validation_error("disconnect_not_supported")
+            raise self.validation_error(Code.DISCONNECT_NOT_SUPPORTED)
         super().validate_disconnect(account, accounts)
 
     def pre_social_login(self, request, sociallogin):
@@ -108,11 +109,11 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             # The Microsoft link is made at the first sign-in, by matching the
             # work email; connecting one by hand would skip that rule and the
             # password removal that comes with it.
-            raise self.validation_error("connect_not_supported")
+            raise self.validation_error(Code.CONNECT_NOT_SUPPORTED)
         if sociallogin.is_existing and sociallogin.account.pk is not None:
             # The Microsoft link already exists: allauth signs this Account in.
             if not sociallogin.user.is_active:
-                raise self.validation_error("account_blocked")
+                raise self.validation_error(Code.ACCOUNT_BLOCKED)
             return
         if sociallogin.is_existing:
             # An existing Account with no saved link: allauth's own email match
@@ -129,9 +130,9 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         if has_microsoft_link(account):
             # The email match only happens when no Microsoft link exists yet, so
             # any link on the matched Account belongs to a different person.
-            raise self.validation_error("account_already_linked")
+            raise self.validation_error(Code.ACCOUNT_ALREADY_LINKED)
         if not account.is_active:
-            raise self.validation_error("account_blocked")
+            raise self.validation_error(Code.ACCOUNT_BLOCKED)
         with transaction.atomic():
             sociallogin.connect(request, account)
             account.set_unusable_password()
@@ -154,9 +155,9 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         if not email:
             # An Account is identified by its email; without one there is
             # nobody to make an Account for.
-            raise self.validation_error("no_work_email")
+            raise self.validation_error(Code.NO_WORK_EMAIL)
         with transaction.atomic():
-            account = get_user_model().objects.create_user(sociallogin.user.email)
+            account = get_user_model().objects.create_user(email)
             sociallogin.connect(request, account)
             set_access_groups(account, get_settings().lowest_access_group)
             account_signed_up_open_to_staff.send(
@@ -167,5 +168,5 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         """The Sign-up rule: Invite only refuses here; Open to staff makes the
         Account at the first Microsoft sign-in, so the sign-up is open."""
         if get_settings().sign_up_rule is SignUpRule.INVITE_ONLY:
-            raise self.validation_error("invite_only")
+            raise self.validation_error(Code.INVITE_ONLY)
         return True

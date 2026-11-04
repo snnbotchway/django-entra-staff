@@ -28,6 +28,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from .adapters import removes_last_second_step
+from .errors import SignInErrorCode
 from .services import has_microsoft_link
 from .stages import SECOND_STEP_TYPES, ReplacePasswordStage, SecondStepSetupStage
 
@@ -178,7 +179,7 @@ class GuardedManageEmailView(ManageEmailView):
     def _refuse_if_linked(self):
         if not has_microsoft_link(self.user):
             return None
-        error = get_account_adapter().validation_error("email_change_not_supported")
+        error = get_account_adapter().validation_error(SignInErrorCode.EMAIL_CHANGE_NOT_SUPPORTED)
         return ErrorResponse(self.request, status=HTTPStatus.FORBIDDEN, exception=error)
 
 
