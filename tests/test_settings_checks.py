@@ -1,3 +1,5 @@
+from unittest import mock
+
 import pytest
 from django.conf import settings
 from django.core.management import call_command
@@ -14,6 +16,7 @@ def check_ids(**overrides):
         return {message.id for message in check_settings(None)}
 
 
+@pytest.mark.django_db
 def test_the_test_app_passes_all_system_checks():
     call_command("check")
 
@@ -27,10 +30,10 @@ def test_every_test_app_variant_is_consistent(variant):
     assert check_ids(ENTRA_STAFF=variant) == set()
 
 
-def test_tenant_is_optional_so_password_sign_in_works_without_microsoft():
+def test_microsoft_sign_in_needs_the_tenant_id():
     without_tenant = {k: v for k, v in INVITE_ONLY_ADDING.items() if k != "TENANT_ID"}
 
-    assert check_ids(ENTRA_STAFF=without_tenant) == set()
+    assert check_ids(ENTRA_STAFF=without_tenant) == {"entra_staff.E013"}
 
 
 @pytest.mark.parametrize(
@@ -66,3 +69,22 @@ def test_user_model_must_be_an_account():
 @pytest.mark.parametrize("adapter", ["allauth.account.adapter.DefaultAccountAdapter", None])
 def test_account_adapter_must_be_the_packages(adapter):
     assert "entra_staff.E011" in check_ids(ACCOUNT_ADAPTER=adapter)
+
+
+def test_allauths_microsoft_provider_app_must_not_be_installed():
+    installed = [*settings.INSTALLED_APPS, "allauth.socialaccount.providers.microsoft"]
+    # Patching the setting directly: override_settings would re-run the app
+    # registry, and both provider apps carry the label "microsoft".
+    with mock.patch.object(settings, "INSTALLED_APPS", installed):
+        assert "entra_staff.E012" in check_ids()
+
+
+@pytest.mark.parametrize(
+    "adapter", ["allauth.socialaccount.adapter.DefaultSocialAccountAdapter", None]
+)
+def test_social_account_adapter_must_be_the_packages(adapter):
+    assert "entra_staff.E015" in check_ids(SOCIALACCOUNT_ADAPTER=adapter)
+
+
+def test_the_microsoft_callback_must_be_the_packages():
+    assert "entra_staff.E014" in check_ids(ROOT_URLCONF="tests.testapp.urls_allauth_microsoft")
