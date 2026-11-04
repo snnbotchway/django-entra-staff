@@ -155,13 +155,19 @@ def set_temporary_password(account, password: str, *, acting_account=None) -> No
 
 
 @transaction.atomic
-def clear_authenticators(account, *, acting_account=None) -> None:
+def clear_authenticators(account, *, acting_account=None) -> bool:
     """Remove the Account's authenticator, passkeys and recovery codes, so the
-    person sets up a new Second step at their next Password sign-in."""
-    Authenticator.objects.filter(user=account).delete()
+    person sets up a new Second step at their next Password sign-in.
+
+    Returns whether anything was removed; the signal is sent only then.
+    """
+    removed = Authenticator.objects.filter(user=account).delete()[0]
+    if not removed:
+        return False
     signals.authenticators_cleared.send(
         sender=type(account), account=account, acting_account=acting_account
     )
+    return True
 
 
 @transaction.atomic

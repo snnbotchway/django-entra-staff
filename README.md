@@ -238,7 +238,7 @@ Use these from the App's own screens, commands and tests, never the models and a
 | `set_access_groups(account, access_groups, *, acting_account=None)` | Replaces the Account's Access groups. |
 | `block_account(account, *, acting_account=None)`, `unblock_account(...)` | Stops and restores sign-in. |
 | `set_temporary_password(account, password, *, acting_account=None)` | For the Django admin only. Refused for a linked Account. |
-| `clear_authenticators(account, *, acting_account=None)` | Removes all authenticators, passkeys and recovery codes. |
+| `clear_authenticators(account, *, acting_account=None)` | Removes all authenticators, passkeys and recovery codes; returns whether anything was removed, and sends its signal only then. |
 | `remove_microsoft_link(account, *, acting_account=None)` | Lets the next Microsoft sign-in link again. The Account keeps no password. |
 | `has_access_group(account, access_group)` | Whether the Account holds the group; `False` when not signed in. |
 | `has_microsoft_link(account)` | Whether the Account has a Microsoft link, so it can never have a password. |

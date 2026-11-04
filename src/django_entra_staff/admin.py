@@ -336,11 +336,10 @@ class AccountAdmin(admin.ModelAdmin):
 
     @admin.action(description=_("Clear the Second step"))
     def clear_authenticators(self, request, queryset):
-        count = 0
-        for account in queryset:
-            if account.authenticator_set.all():
-                services.clear_authenticators(account, acting_account=request.user)
-                count += 1
+        count = sum(
+            services.clear_authenticators(account, acting_account=request.user)
+            for account in queryset
+        )
         self._report(
             request,
             count,
@@ -350,10 +349,10 @@ class AccountAdmin(admin.ModelAdmin):
 
     @admin.action(description=_("Remove the Microsoft link"))
     def remove_microsoft_link(self, request, queryset):
-        count = 0
-        for account in queryset:
-            if services.remove_microsoft_link(account, acting_account=request.user):
-                count += 1
+        count = sum(
+            services.remove_microsoft_link(account, acting_account=request.user)
+            for account in queryset
+        )
         self._report(
             request,
             count,

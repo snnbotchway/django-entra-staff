@@ -550,3 +550,8 @@ def test_django_admin_access_is_edited_on_the_account_and_not_by_access_groups(i
 
     assert person.is_staff and not person.is_superuser
     assert held(person) == {"manager"}
+
+
+def test_clearing_an_account_with_no_second_step_changes_nothing(account, sent):
+    assert services.clear_authenticators(account) is False
+    assert sent == []
