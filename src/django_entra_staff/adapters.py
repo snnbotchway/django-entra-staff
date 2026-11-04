@@ -9,11 +9,31 @@ from django.utils.translation import gettext_lazy as _
 from .conf import SignUpRule, get_settings
 from .signals import microsoft_link_made
 
+MICROSOFT_PROVIDER_ID = "microsoft"
+
+
+def _has_microsoft_link(account):
+    return SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).exists()
+
 
 class AccountAdapter(DefaultAccountAdapter):
+    error_messages = {
+        **DefaultAccountAdapter.error_messages,
+        "use_microsoft_signin": _("Use Microsoft sign-in for this account."),
+    }
+
     def is_open_for_signup(self, request):
         """Nobody creates their own Account with a password."""
         return False
+
+    def authenticate(self, request, **credentials):
+        user = super().authenticate(request, **credentials)
+        if user is not None and _has_microsoft_link(user):
+            # The password was right, so the refusal can say why; a wrong
+            # password keeps allauth's ordinary error, so linked Accounts do
+            # not stand out.
+            raise self.validation_error("use_microsoft_signin")
+        return user
 
     def get_login_stages(self):
         stages = super().get_login_stages()
@@ -49,7 +69,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         if account is None:
             # Nobody to link: the Sign-up rule answers in is_open_for_signup.
             return
-        if SocialAccount.objects.filter(provider="microsoft", user=account).exists():
+        if SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).exists():
             # The email match only happens when no Microsoft link exists yet, so
             # any link on the matched Account belongs to a different person.
             raise self.validation_error("account_already_linked")

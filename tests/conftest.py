@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlparse
 import jwt
 import pytest
 import requests
+from allauth.socialaccount.models import SocialAccount
 from cryptography.hazmat.primitives.asymmetric import rsa
 from django.conf import settings
 from django.core.cache import cache
@@ -31,6 +32,11 @@ def sign_in(client, email, password):
 
 def is_signed_in(client):
     return client.get(f"{API}/auth/session").status_code == 200
+
+
+def link_microsoft(account, uid="uid-1"):
+    """Give the Account the Microsoft link row, whatever way it was made."""
+    return SocialAccount.objects.create(user=account, provider="microsoft", uid=uid)
 
 
 @pytest.fixture(autouse=True)
