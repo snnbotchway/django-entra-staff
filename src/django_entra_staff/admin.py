@@ -48,6 +48,10 @@ class Refused(Exception):
         self.message = REFUSALS.get(error.code, _("That change isn't allowed."))
 
 
+def _exclusive() -> bool:
+    return get_settings().group_mode == GroupMode.EXCLUSIVE
+
+
 def held_access_groups(account) -> list[str]:
     declared = get_settings().access_groups
     held = set(account.groups.filter(name__in=declared).values_list("name", flat=True))
@@ -57,7 +61,7 @@ def held_access_groups(account) -> list[str]:
 def access_groups_field(**kwargs) -> forms.Field:
     """Several Access groups to tick, or exactly one to pick, as the App declares."""
     choices = [(name, name) for name in get_settings().access_groups]
-    if get_settings().group_mode == GroupMode.EXCLUSIVE:
+    if _exclusive():
         return forms.ChoiceField(
             label=_("Access group"), choices=choices, widget=forms.RadioSelect, **kwargs
         )
@@ -81,13 +85,15 @@ class AccountChangeForm(forms.ModelForm):
 
     class Meta:
         fields = ("is_staff", "is_superuser")
+        help_texts = {
+            "is_superuser": _("Has every Django admin permission without being given each one."),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["access_groups"] = access_groups_field(required=False)
         held = held_access_groups(self.instance)
-        exclusive = get_settings().group_mode == GroupMode.EXCLUSIVE
-        self.initial["access_groups"] = (held[0] if held else "") if exclusive else held
+        self.initial["access_groups"] = (held[0] if held else "") if _exclusive() else held
         self.initial["blocked"] = not self.instance.is_active
 
 
@@ -99,12 +105,14 @@ class InviteForm(forms.ModelForm):
 
     class Meta:
         fields = ("email",)
+        help_texts = {
+            "email": _("Their work email: their first Microsoft sign-in links to this Account."),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        exclusive = get_settings().group_mode == GroupMode.EXCLUSIVE
         self.fields["access_groups"] = access_groups_field(
-            required=exclusive,
+            required=_exclusive(),
             error_messages={"required": REFUSALS[ErrorCode.EXCLUSIVE_NEEDS_ONE_GROUP]},
         )
 
@@ -147,7 +155,6 @@ class AccountAdmin(admin.ModelAdmin):
         "second_step_status",
         "last_sign_in",
         "date_joined",
-        "groups",
     )
     readonly_fields = (
         "email",
@@ -156,7 +163,6 @@ class AccountAdmin(admin.ModelAdmin):
         "second_step_status",
         "last_sign_in",
         "date_joined",
-        "groups",
     )
 
     def get_form(self, request, obj=None, **kwargs):
@@ -249,27 +255,34 @@ class AccountAdmin(admin.ModelAdmin):
 
     @admin.display(description=_("Last sign-in"), ordering="last_login")
     def last_sign_in(self, account):
-        return account.last_login
+        return account.last_login or self.get_empty_value_display()
 
-    @admin.action(description=_("Block the selected accounts"))
+    @admin.action(description=_("Block the selected Accounts"))
     def block_accounts(self, request, queryset):
-        count = 0
-        for account in queryset.filter(is_active=True):
-            services.block_account(account, acting_account=request.user)
-            count += 1
-        self.message_user(
-            request, self._counted(_("Blocked %(count)d %(items)s."), count), messages.SUCCESS
+        self._set_blocked(
+            request,
+            queryset.filter(is_active=True),
+            services.block_account,
+            _("Blocked %(count)d %(items)s."),
+            _("All the selected Accounts were already blocked."),
         )
 
-    @admin.action(description=_("Unblock the selected accounts"))
+    @admin.action(description=_("Unblock the selected Accounts"))
     def unblock_accounts(self, request, queryset):
-        count = 0
-        for account in queryset.filter(is_active=False):
-            services.unblock_account(account, acting_account=request.user)
-            count += 1
-        self.message_user(
-            request, self._counted(_("Unblocked %(count)d %(items)s."), count), messages.SUCCESS
+        self._set_blocked(
+            request,
+            queryset.filter(is_active=False),
+            services.unblock_account,
+            _("Unblocked %(count)d %(items)s."),
+            _("None of the selected Accounts were blocked."),
         )
+
+    def _set_blocked(self, request, accounts, change, done_message, nothing_message):
+        count = 0
+        for account in accounts:
+            change(account, acting_account=request.user)
+            count += 1
+        self._report(request, count, done_message, nothing_message)
 
     @admin.action(description=_("Set a Temporary password"))
     def set_temporary_password(self, request, queryset):
@@ -313,7 +326,7 @@ class AccountAdmin(admin.ModelAdmin):
             "title": _("Set a Temporary password"),
             "subtitle": None,
             "form": form,
-            "queryset": queryset,
+            "accounts": [(account, bool(account.socialaccount_set.all())) for account in queryset],
             "opts": self.model._meta,
             "action_checkbox_name": ACTION_CHECKBOX_NAME,
             "media": self.media,
@@ -321,15 +334,18 @@ class AccountAdmin(admin.ModelAdmin):
         request.current_app = self.admin_site.name
         return TemplateResponse(request, self.set_temporary_password_template, context)
 
-    @admin.action(description=_("Clear authenticators and passkeys"))
+    @admin.action(description=_("Clear the Second step"))
     def clear_authenticators(self, request, queryset):
-        count = len(queryset)
+        count = 0
         for account in queryset:
-            services.clear_authenticators(account, acting_account=request.user)
-        self.message_user(
+            if account.authenticator_set.all():
+                services.clear_authenticators(account, acting_account=request.user)
+                count += 1
+        self._report(
             request,
-            self._counted(_("Cleared authenticators and passkeys for %(count)d %(items)s."), count),
-            messages.SUCCESS,
+            count,
+            _("Cleared the Second step for %(count)d %(items)s."),
+            _("None of the selected Accounts had a Second step to clear."),
         )
 
     @admin.action(description=_("Remove the Microsoft link"))
@@ -338,11 +354,19 @@ class AccountAdmin(admin.ModelAdmin):
         for account in queryset:
             if services.remove_microsoft_link(account, acting_account=request.user):
                 count += 1
-        self.message_user(
+        self._report(
             request,
-            self._counted(_("Removed the Microsoft link from %(count)d %(items)s."), count),
-            messages.SUCCESS,
+            count,
+            _("Removed the Microsoft link from %(count)d %(items)s."),
+            _("None of the selected Accounts had a Microsoft link."),
         )
+
+    def _report(self, request, count, done_message, nothing_message):
+        """Say how many Accounts an action changed, or warn that it changed none."""
+        if count:
+            self.message_user(request, self._counted(done_message, count), messages.SUCCESS)
+        else:
+            self.message_user(request, nothing_message, messages.WARNING)
 
     def _counted(self, message, count):
         return message % {"count": count, "items": model_ngettext(self.opts, count)}
