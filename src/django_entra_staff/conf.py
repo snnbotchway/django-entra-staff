@@ -32,9 +32,13 @@ class CheckId(StrEnum):
     OPEN_TO_STAFF_NEEDS_LOWEST_ACCESS_GROUP = "entra_staff.E009"
     USER_MODEL_NOT_AN_ACCOUNT = "entra_staff.E010"
     ACCOUNT_ADAPTER_NOT_THE_PACKAGES = "entra_staff.E011"
-    WEBAUTHN_TYPE_NOT_ON = "entra_staff.E012"
-    PASSKEY_LOGIN_ON = "entra_staff.E013"
-    PASSKEY_SIGNUP_ON = "entra_staff.E014"
+    MICROSOFT_PROVIDER_NOT_THE_PACKAGES = "entra_staff.E012"
+    MICROSOFT_NEEDS_TENANT_ID = "entra_staff.E013"
+    MICROSOFT_CALLBACK_NOT_THE_PACKAGES = "entra_staff.E014"
+    SOCIAL_ACCOUNT_ADAPTER_NOT_THE_PACKAGES = "entra_staff.E015"
+    WEBAUTHN_TYPE_NOT_ON = "entra_staff.E016"
+    PASSKEY_LOGIN_ON = "entra_staff.E017"
+    PASSKEY_SIGNUP_ON = "entra_staff.E018"
 
 
 class Problem(NamedTuple):

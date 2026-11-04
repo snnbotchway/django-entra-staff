@@ -33,6 +33,21 @@ class SecondStepSetupStage(LoginStage):
         return headed_redirect_response(self.urlname), True
 
 
+class ReplacePasswordStage(LoginStage):
+    """An Account with a Temporary password must choose a new one before the
+    sign-in opens it. Microsoft sign-in never reaches this stage."""
+
+    key = "replace_password"
+    urlname = "replace_password"
+
+    def handle(self):
+        if self.login.user is None or _used_social_sign_in(self.request, self.login.user):
+            return None, True
+        if not self.login.user.must_replace_password:
+            return None, True
+        return headed_redirect_response(self.urlname), True
+
+
 def _used_social_sign_in(request, user):
     return any(
         record.get("method") == "socialaccount"

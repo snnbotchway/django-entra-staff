@@ -18,7 +18,7 @@ INSTALLED_APPS = [
     "allauth.mfa",
     "allauth.headless",
     "allauth.socialaccount",
-    "allauth.socialaccount.providers.microsoft",
+    "django_entra_staff.providers.microsoft",
     "django_entra_staff",
     "tests.testapp",
 ]
@@ -48,6 +48,12 @@ TEMPLATES = [
 DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 12},
+    }
+]
 
 AUTH_USER_MODEL = "testapp.Account"
 AUTHENTICATION_BACKENDS = [
@@ -58,9 +64,19 @@ AUTHENTICATION_BACKENDS = [
 ENTRA_STAFF = INVITE_ONLY_ADDING
 
 ACCOUNT_ADAPTER = "django_entra_staff.adapters.AccountAdapter"
+SOCIALACCOUNT_ADAPTER = "django_entra_staff.adapters.SocialAccountAdapter"
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_EMAIL_VERIFICATION = "none"
 MFA_SUPPORTED_TYPES = ["recovery_codes", "totp", "webauthn"]
 HEADLESS_ONLY = True
+HEADLESS_FRONTEND_URLS = {
+    "socialaccount_login_error": "/next",
+    "account_signup": "/sign-up",
+    "account_reset_password_from_key": "/reset-password/{key}",
+}
+
+SOCIALACCOUNT_PROVIDERS = {
+    "microsoft": {"APP": {"client_id": "test-client-id", "secret": "test-secret"}}
+}

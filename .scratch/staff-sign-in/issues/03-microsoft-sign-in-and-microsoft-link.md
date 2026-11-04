@@ -1,6 +1,6 @@
 # 03: Microsoft sign-in with the Microsoft link (Invite only)
 
-Status: open
+Status: done
 Labels: ready-for-agent
 Blocked by: 01
 
