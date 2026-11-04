@@ -1,6 +1,6 @@
 # Staff sign-in: the first release of django-entra-staff
 
-Status: open
+Status: done
 Labels: ready-for-agent
 
 ## Problem Statement
