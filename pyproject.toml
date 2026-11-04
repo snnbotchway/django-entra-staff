@@ -1,0 +1,46 @@
+[build-system]
+requires = ["uv_build>=0.9,<0.13"]
+build-backend = "uv_build"
+
+[project]
+name = "django-entra-staff"
+version = "0.1.0.dev0"
+description = "Staff sign-in for internal Django apps: Microsoft Entra, passwords with a Second step, and access groups, on django-allauth."
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Framework :: Django",
+    "Framework :: Django :: 5.2",
+    "Framework :: Django :: 6.0",
+    "Framework :: Django :: 6.1",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "Django>=5.2,<6.2",
+    # The login-stage and headless APIs change between minor versions (see the spec).
+    "django-allauth[headless,mfa,socialaccount]>=65.21.1,<65.22",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+    "ruff>=0.9",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.testapp.settings"
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["tests/testapp/migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "DJ"]
