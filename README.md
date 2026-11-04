@@ -154,6 +154,7 @@ Also needed:
    ```
 
 3. The tenant comes only from `ENTRA_STAFF["TENANT_ID"]`. Do not set the provider's own `TENANT` setting; it is ignored.
+4. Leave out the app's `provider_id`, in settings and in a `SocialApp` row. The system check sees only the settings, not rows in the database, so check those yourself. Microsoft is the only provider the package supports, so every social account an Account has counts as its Microsoft link; a custom `provider_id` would only confuse the sign-in URLs.
 
 The package checks the token's signature, issuer (which contains the tenant), audience and expiry before it links or signs anyone in. A token from any other tenant is refused. Guests of your tenant (B2B guests from another tenant, or personal Microsoft accounts you invited) are refused too: their token's `idp` claim names their home identity provider instead of your tenant's issuer. Give such people a member account in your tenant, or a password Account.
 
@@ -196,7 +197,7 @@ Being an App admin never grants Django admin access. Only IT and developers hold
 
 ### System checks
 
-`manage.py check` fails at start-up, before anyone signs in, when the settings above are inconsistent (ids `entra_staff.E001` to `E027`): a bad or incomplete `ENTRA_STAFF`, an `AUTH_USER_MODEL` that is not an Account, the package's adapters or Microsoft provider not in place, `webauthn` missing from `MFA_SUPPORTED_TYPES`, passkey sign-in or sign-up switched on, `HEADLESS_ONLY` off, sign-in or Password reset by emailed code switched on, Django's `ModelBackend` in `AUTHENTICATION_BACKENDS`, allauth's email authentication or MFA trust switched on, `ACCOUNT_PREVENT_ENUMERATION` off, or allauth's own `account/email` or authenticator management views answering instead of the package's.
+`manage.py check` fails at start-up, before anyone signs in, when the settings above are inconsistent (ids `entra_staff.E001` to `E028`): a bad or incomplete `ENTRA_STAFF`, an `AUTH_USER_MODEL` that is not an Account, the package's adapters or Microsoft provider not in place, `webauthn` missing from `MFA_SUPPORTED_TYPES`, passkey sign-in or sign-up switched on, `HEADLESS_ONLY` off, sign-in or Password reset by emailed code switched on, Django's `ModelBackend` in `AUTHENTICATION_BACKENDS`, allauth's email authentication or MFA trust switched on, `ACCOUNT_PREVENT_ENUMERATION` off, or allauth's own `account/email` or authenticator management views answering instead of the package's, or a `provider_id` on the Microsoft app in `SOCIALACCOUNT_PROVIDERS`.
 
 ## The sign-in API
 

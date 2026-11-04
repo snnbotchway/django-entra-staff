@@ -12,7 +12,14 @@ from django.urls import NoReverseMatch, resolve, reverse
 from django.utils.module_loading import import_string
 
 from .adapters import AccountAdapter, MFAAdapter, SocialAccountAdapter, dotted_path
-from .conf import MICROSOFT_NEEDS_TENANT_ID_MESSAGE, SETTING_NAME, CheckId, get_settings, validate
+from .conf import (
+    MICROSOFT_NEEDS_TENANT_ID_MESSAGE,
+    MICROSOFT_PROVIDER_ID,
+    SETTING_NAME,
+    CheckId,
+    get_settings,
+    validate,
+)
 from .models import AbstractAccount
 from .providers.microsoft.views import oauth2_callback
 from .views import GuardedManageEmailView, GuardedManageTOTPView, GuardedManageWebAuthnView
@@ -67,6 +74,16 @@ def _email_authentication_is_on() -> bool:
     )
 
 
+def _microsoft_app_has_another_provider_id() -> bool:
+    """Whether an app set up in `SOCIALACCOUNT_PROVIDERS` for Microsoft names its
+    own `provider_id`. A Microsoft app saved in the database cannot be seen here."""
+    config = getattr(settings, "SOCIALACCOUNT_PROVIDERS", {}).get(MICROSOFT_PROVIDER_ID, {})
+    apps = config.get("APPS") or [config.get("APP", {})]
+    return any(
+        app.get("provider_id", MICROSOFT_PROVIDER_ID) != MICROSOFT_PROVIDER_ID for app in apps
+    )
+
+
 def _unguarded_endpoints() -> list[str]:
     """The URL names whose allauth path resolves to something other than the
     package's guarded view. An endpoint that is not mounted has nothing to
@@ -115,6 +132,15 @@ def check_settings(app_configs, **kwargs):
                 f" not {ALLAUTH_MICROSOFT_APP}: allauth's adapter never verifies the"
                 " id_token's tenant.",
                 id=CheckId.MICROSOFT_PROVIDER_NOT_THE_PACKAGES.value,
+            )
+        )
+
+    if _microsoft_app_has_another_provider_id():
+        errors.append(
+            Error(
+                f"The Microsoft app in SOCIALACCOUNT_PROVIDERS must keep the provider id"
+                f" {MICROSOFT_PROVIDER_ID!r}: leave out its 'provider_id'.",
+                id=CheckId.MICROSOFT_PROVIDER_ID_CHANGED.value,
             )
         )
 

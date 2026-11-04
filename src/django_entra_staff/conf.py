@@ -10,7 +10,8 @@ from django.core.exceptions import ImproperlyConfigured
 SETTING_NAME = "ENTRA_STAFF"
 
 # The id of the Microsoft provider app the package ships (the App installs it
-# instead of allauth's); the Microsoft link is a SocialAccount row with it.
+# instead of allauth's). The Microsoft app keeps it as its `provider_id`; the
+# Microsoft link is a SocialAccount row, whichever provider id it carries.
 MICROSOFT_PROVIDER_ID = "microsoft"
 
 
@@ -63,6 +64,7 @@ class CheckId(StrEnum):
     MFA_TRUST_ON = "entra_staff.E025"
     PREVENT_ENUMERATION_OFF = "entra_staff.E026"
     GUARDED_ENDPOINT_NOT_THE_PACKAGES = "entra_staff.E027"
+    MICROSOFT_PROVIDER_ID_CHANGED = "entra_staff.E028"
 
 
 class Problem(NamedTuple):

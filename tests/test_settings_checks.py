@@ -178,3 +178,21 @@ def test_either_way_of_preventing_enumeration_passes(prevent):
 
 def test_the_packages_guarded_endpoints_must_win_over_allauths():
     assert "entra_staff.E027" in check_ids(ROOT_URLCONF="tests.testapp.urls_allauth_headless")
+
+
+@pytest.mark.parametrize(
+    "providers",
+    [
+        {"microsoft": {"APP": {**MICROSOFT_APP, "provider_id": "entra"}}},
+        {"microsoft": {"APPS": [MICROSOFT_APP, {**MICROSOFT_APP, "provider_id": "entra"}]}},
+    ],
+    ids=["app", "apps"],
+)
+def test_the_microsoft_app_must_keep_the_providers_own_id(providers):
+    assert "entra_staff.E028" in check_ids(SOCIALACCOUNT_PROVIDERS=providers)
+
+
+def test_naming_the_providers_own_id_is_fine():
+    providers = {"microsoft": {"APP": {**MICROSOFT_APP, "provider_id": "microsoft"}}}
+
+    assert "entra_staff.E028" not in check_ids(SOCIALACCOUNT_PROVIDERS=providers)

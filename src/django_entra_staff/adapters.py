@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
-from .conf import MICROSOFT_PROVIDER_ID, SignUpRule, get_settings
+from .conf import SignUpRule, get_settings
 from .errors import SignInErrorCode as Code
 from .services import has_microsoft_link, set_access_groups
 from .signals import account_signed_up_open_to_staff, microsoft_link_made
@@ -99,10 +99,8 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
     def validate_disconnect(self, account, accounts):
         """Only IT removes a Microsoft link, through `services.remove_microsoft_link`:
         a person who removed their own could keep a password-only Account after
-        leaving (ADR 0002)."""
-        if account.provider == MICROSOFT_PROVIDER_ID:
-            raise self.validation_error(Code.DISCONNECT_NOT_SUPPORTED)
-        super().validate_disconnect(account, accounts)
+        leaving (ADR 0002). Every social account is the Microsoft link."""
+        raise self.validation_error(Code.DISCONNECT_NOT_SUPPORTED)
 
     def pre_social_login(self, request, sociallogin):
         if sociallogin.state.get("process") == AuthProcess.CONNECT:
