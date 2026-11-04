@@ -4,7 +4,7 @@ from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 
 from django_entra_staff.signals import microsoft_link_made
-from tests.conftest import PASSWORD, error_code, is_signed_in
+from tests.conftest import API, PASSWORD, error_code, is_signed_in
 
 pytestmark = pytest.mark.django_db
 
@@ -141,3 +141,37 @@ def test_microsoft_sign_in_is_never_asked_for_the_second_step(microsoft, client,
 
     assert error_code(response) is None
     assert is_signed_in(client)
+
+
+def test_a_linked_account_cannot_give_itself_a_password(microsoft, client, account):
+    microsoft.sign_in(client, email="jane.doe@example.org")
+
+    response = client.post(
+        f"{API}/account/password/change",
+        {"new_password": "a brand new password"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["errors"][0]["code"] == "use_microsoft_signin"
+    account.refresh_from_db()
+    assert not account.has_usable_password()
+
+
+def test_a_linked_account_cannot_remove_its_microsoft_link(microsoft, client, account):
+    microsoft.sign_in(client, email="jane.doe@example.org")
+    # The state a bypass would leave behind: a password next to the link.
+    account.refresh_from_db()
+    account.set_password(PASSWORD)
+    account.save()
+    client.force_login(account)
+
+    response = client.delete(
+        f"{API}/account/providers",
+        {"provider": "microsoft", "account": "uid-1"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["errors"][0]["code"] == "disconnect_not_supported"
+    assert SocialAccount.objects.filter(user=account, provider="microsoft").exists()

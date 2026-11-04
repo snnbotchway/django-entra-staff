@@ -107,6 +107,11 @@ def set_access_groups(account, access_groups: GroupNames, *, acting_account=None
     _replace_groups(account, names, acting_account)
 
 
+def has_microsoft_link(account) -> bool:
+    """Whether the Account has a Microsoft link, which rules out any password (ADR 0002)."""
+    return SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).exists()
+
+
 def _set_active(account, active: bool, signal, acting_account) -> None:
     with transaction.atomic():
         if account.is_active == active:
@@ -130,7 +135,7 @@ def unblock_account(account, *, acting_account=None) -> None:
 def set_temporary_password(account, password: str, *, acting_account=None) -> None:
     """Give the Account a Temporary password the person must replace at their next
     Password sign-in."""
-    if SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).exists():
+    if has_microsoft_link(account):
         raise StaffError(
             ErrorCode.MICROSOFT_LINKED,
             "An Account with a Microsoft link cannot get a Temporary password.",

@@ -1,18 +1,13 @@
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
-from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.base import AuthProcess
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
 from .conf import MICROSOFT_PROVIDER_ID, SignUpRule, get_settings
-from .services import set_access_groups
+from .services import has_microsoft_link, set_access_groups
 from .signals import account_signed_up_open_to_staff, microsoft_link_made
-
-
-def _has_microsoft_link(account):
-    return SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).exists()
 
 
 class AccountAdapter(DefaultAccountAdapter):
@@ -27,15 +22,22 @@ class AccountAdapter(DefaultAccountAdapter):
 
     def authenticate(self, request, **credentials):
         user = super().authenticate(request, **credentials)
-        if user is not None and _has_microsoft_link(user):
+        if user is not None and has_microsoft_link(user):
             # The password was right, so the refusal can say why; a wrong
             # password keeps allauth's ordinary error, so linked Accounts do
             # not stand out.
             raise self.validation_error("use_microsoft_signin")
         return user
 
+    def clean_password(self, password, user=None):
+        """Every way of adding a password (set, change, reset from a key) checks
+        it here, so a linked Account never gets one back (ADR 0002)."""
+        if user is not None and user.pk is not None and has_microsoft_link(user):
+            raise self.validation_error("use_microsoft_signin")
+        return super().clean_password(password, user=user)
+
     def send_password_reset_mail(self, user, email, context):
-        if user.has_usable_password() and not _has_microsoft_link(user):
+        if user.has_usable_password() and not has_microsoft_link(user):
             super().send_password_reset_mail(user, email, context)
 
     def get_login_stages(self):
@@ -57,7 +59,18 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             "This email address is already linked to another Microsoft account."
         ),
         "connect_not_supported": _("A Microsoft account cannot be connected this way."),
+        "disconnect_not_supported": _(
+            "Your Microsoft account cannot be removed here. Ask IT to remove it."
+        ),
     }
+
+    def validate_disconnect(self, account, accounts):
+        """Only IT removes a Microsoft link, through `services.remove_microsoft_link`:
+        a person who removed their own could keep a password-only Account after
+        leaving (ADR 0002)."""
+        if account.provider == MICROSOFT_PROVIDER_ID:
+            raise self.validation_error("disconnect_not_supported")
+        super().validate_disconnect(account, accounts)
 
     def pre_social_login(self, request, sociallogin):
         if sociallogin.state.get("process") == AuthProcess.CONNECT:
@@ -76,7 +89,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             if get_settings().sign_up_rule is SignUpRule.OPEN_TO_STAFF:
                 self._sign_up(request, sociallogin)
             return
-        if SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).exists():
+        if has_microsoft_link(account):
             # The email match only happens when no Microsoft link exists yet, so
             # any link on the matched Account belongs to a different person.
             raise self.validation_error("account_already_linked")
