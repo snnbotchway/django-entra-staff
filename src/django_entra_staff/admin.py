@@ -9,17 +9,80 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.contrib.admin.utils import model_ngettext
+from django.http import HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.utils.translation import gettext_lazy as _
 
 from . import services
-from .conf import MICROSOFT_PROVIDER_ID, get_settings
+from .conf import MICROSOFT_PROVIDER_ID, GroupMode, get_settings
 from .errors import ErrorCode, StaffError
 from .stages import SECOND_STEP_TYPES
 
 
 class TemporaryPasswordForm(forms.Form):
     password = forms.CharField(label=_("Temporary password"), widget=forms.PasswordInput)
+
+
+REFUSALS = {
+    ErrorCode.UNDECLARED_ACCESS_GROUP: _("That Access group isn't available."),
+    ErrorCode.EXCLUSIVE_NEEDS_ONE_GROUP: _("Choose exactly one Access group."),
+    ErrorCode.LAST_APP_ADMIN: _(
+        "The last App admin can't lose the App admin group. Make someone else an App admin first."
+    ),
+    ErrorCode.ACCOUNT_EXISTS: _("An Account with this email already exists."),
+}
+
+
+class Refused(Exception):
+    """A service refused a change made on a form. Raised inside the admin's transaction so
+    that nothing the form changed is kept."""
+
+    def __init__(self, error: StaffError):
+        super().__init__(error.message)
+        self.message = REFUSALS.get(error.code, _("That change isn't allowed."))
+
+
+def held_access_groups(account) -> list[str]:
+    declared = get_settings().access_groups
+    held = set(account.groups.filter(name__in=declared).values_list("name", flat=True))
+    return [name for name in declared if name in held]
+
+
+def access_groups_field(**kwargs) -> forms.Field:
+    """Several Access groups to tick, or exactly one to pick, as the App declares."""
+    choices = [(name, name) for name in get_settings().access_groups]
+    if get_settings().group_mode == GroupMode.EXCLUSIVE:
+        return forms.ChoiceField(
+            label=_("Access group"), choices=choices, widget=forms.RadioSelect, **kwargs
+        )
+    return forms.MultipleChoiceField(
+        label=_("Access groups"), choices=choices, widget=forms.CheckboxSelectMultiple, **kwargs
+    )
+
+
+def chosen_groups(form) -> list[str]:
+    chosen = form.cleaned_data["access_groups"]
+    if isinstance(chosen, str):
+        return [chosen] if chosen else []
+    return list(chosen)
+
+
+class AccountChangeForm(forms.ModelForm):
+    """Django admin access, Access groups and blocked: the Account fields IT edits by hand."""
+
+    access_groups = forms.Field(required=False)  # replaced per request: the App's settings decide
+    blocked = forms.BooleanField(label=_("Blocked"), required=False)
+
+    class Meta:
+        fields = ("is_staff", "is_superuser")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["access_groups"] = access_groups_field(required=False)
+        held = held_access_groups(self.instance)
+        exclusive = get_settings().group_mode == GroupMode.EXCLUSIVE
+        self.initial["access_groups"] = (held[0] if held else "") if exclusive else held
+        self.initial["blocked"] = not self.instance.is_active
 
 
 class AccountAdmin(admin.ModelAdmin):
@@ -42,29 +105,50 @@ class AccountAdmin(admin.ModelAdmin):
         "is_staff",
         "is_superuser",
         "access_groups",
+        "blocked",
         "microsoft_link",
         "password_status",
         "second_step_status",
-        "blocked",
         "last_sign_in",
         "date_joined",
         "groups",
     )
     readonly_fields = (
         "email",
-        "access_groups",
         "microsoft_link",
         "password_status",
         "second_step_status",
-        "blocked",
         "last_sign_in",
         "date_joined",
         "groups",
     )
 
-    def has_add_permission(self, request):
-        """Accounts are made through `invite_account` or Open to staff, not here."""
-        return False
+    def get_form(self, request, obj=None, **kwargs):
+        return super().get_form(request, obj, form=AccountChangeForm, **kwargs)
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        try:
+            return super().changeform_view(request, object_id, form_url, extra_context)
+        except Refused as refusal:
+            self.message_user(request, refusal.message, messages.ERROR)
+            return HttpResponseRedirect(request.get_full_path())
+
+    def save_model(self, request, obj, form, change):
+        flags = {"is_staff", "is_superuser"}.intersection(form.changed_data)
+        if flags:
+            obj.save(update_fields=sorted(flags))
+        try:
+            if "access_groups" in form.changed_data:
+                services.set_access_groups(obj, chosen_groups(form), acting_account=request.user)
+            if "blocked" in form.changed_data:
+                change_blocked = (
+                    services.block_account
+                    if form.cleaned_data["blocked"]
+                    else services.unblock_account
+                )
+                change_blocked(obj, acting_account=request.user)
+        except StaffError as error:
+            raise Refused(error) from error
 
     def get_queryset(self, request):
         return (

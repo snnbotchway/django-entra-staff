@@ -1,6 +1,7 @@
 """The Django admin: the Account support page, its sign-in and its actions."""
 
 import re
+from html import unescape
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -9,7 +10,8 @@ from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
 from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
-from django.test import Client
+from django.contrib.auth.models import Group
+from django.test import Client, override_settings
 from django.urls import reverse
 
 from django_entra_staff import services, signals
@@ -22,6 +24,7 @@ from tests.conftest import (
     totp_code,
     totp_secret_of,
 )
+from tests.testapp import variants
 
 pytestmark = pytest.mark.django_db
 
@@ -286,3 +289,80 @@ def test_the_admin_removes_the_microsoft_link_and_the_next_sign_in_links_again(
     assert is_signed_in(browser)
     assert SocialAccount.objects.filter(user=person, provider="microsoft").exists()
     assert len(link_made_events) == 2
+
+
+def change_url(account):
+    return reverse("admin:testapp_account_change", args=[account.pk])
+
+
+def post_change(client, account, **fields):
+    """Submit the change form the way a browser does: unchecked boxes are left out."""
+    return client.post(change_url(account), fields, follow=True)
+
+
+def held(account):
+    return set(account.groups.values_list("name", flat=True))
+
+
+def test_it_sets_access_groups_on_the_change_form_through_the_service(it_client, it):
+    person = services.invite_account("jane.doe@example.org", ["viewer"])
+    events = []
+
+    def receiver(sender, **kwargs):
+        events.append((kwargs["account"], kwargs["acting_account"], kwargs["groups"]))
+
+    signals.access_groups_changed.connect(receiver, weak=False)
+    try:
+        response = post_change(it_client, person, access_groups=["editor", "manager"])
+    finally:
+        signals.access_groups_changed.disconnect(receiver)
+
+    assert response.status_code == 200
+    assert held(person) == {"editor", "manager"}
+    assert events == [(person, it, frozenset({"editor", "manager"}))]
+
+
+def test_the_change_form_offers_only_declared_access_groups(it_client):
+    person = services.invite_account("jane.doe@example.org", ["viewer"])
+    person.groups.add(Group.objects.create(name="payroll"))
+
+    response = it_client.get(change_url(person))
+
+    offered = response.context["adminform"].form.fields["access_groups"].choices
+    assert [value for value, _label in offered] == ["viewer", "editor", "manager"]
+
+    response = post_change(it_client, person, access_groups=["editor"])
+
+    assert held(person) == {"editor", "payroll"}
+    assert response.status_code == 200
+
+
+@override_settings(ENTRA_STAFF=variants.INVITE_ONLY_EXCLUSIVE)
+def test_exclusive_access_groups_are_picked_one_at_a_time(it_client):
+    person = services.invite_account("jane.doe@example.org", ["viewer"])
+
+    response = it_client.get(change_url(person))
+
+    assert 'type="radio"' in response.content.decode()
+    post_change(it_client, person, access_groups="editor")
+    assert held(person) == {"editor"}
+
+    response = post_change(it_client, person, access_groups="")
+
+    assert response.status_code == 200
+    assert "Choose exactly one Access group." in response.content.decode()
+    assert held(person) == {"editor"}
+
+
+def test_a_refused_change_shows_a_message_and_saves_nothing(it_client):
+    only_admin = services.invite_account("boss@example.org", ["manager"])
+
+    response = post_change(it_client, only_admin, access_groups=["viewer"], is_staff="on")
+
+    assert response.status_code == 200
+    assert "The last App admin can't lose the App admin group." in unescape(
+        response.content.decode()
+    )
+    assert held(only_admin) == {"manager"}
+    only_admin.refresh_from_db()
+    assert not only_admin.is_staff
