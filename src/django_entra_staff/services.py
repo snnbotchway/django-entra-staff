@@ -17,7 +17,7 @@ from django.contrib.auth.models import Group
 from django.db import transaction
 
 from . import signals
-from .conf import MICROSOFT_PROVIDER_ID, GroupMode, get_settings
+from .conf import MICROSOFT_PROVIDER_ID, SETTING_NAME, GroupMode, get_settings
 from .errors import ErrorCode, StaffError
 
 GroupNames = str | Iterable[str]
@@ -32,7 +32,7 @@ def _require_declared(names: Iterable[str]) -> None:
     if undeclared:
         raise StaffError(
             ErrorCode.UNDECLARED_ACCESS_GROUP,
-            f"Access groups not declared in ENTRA_STAFF: {', '.join(undeclared)}.",
+            f"Access groups not declared in {SETTING_NAME}: {', '.join(undeclared)}.",
         )
 
 
