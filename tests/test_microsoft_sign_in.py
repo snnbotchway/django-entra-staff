@@ -3,6 +3,7 @@ from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 
+from django_entra_staff.conf import get_settings
 from django_entra_staff.signals import microsoft_link_made
 from tests.conftest import API, PASSWORD, error_code, is_signed_in
 
@@ -22,6 +23,31 @@ def test_a_token_from_another_tenant_is_refused(microsoft, client):
     assert error_code(response) == "unknown"
     assert not is_signed_in(client)
     assert not SocialAccount.objects.exists()
+
+
+@pytest.mark.parametrize(
+    "idp",
+    [f"https://sts.windows.net/{OTHER_TENANT}/", "live.com"],
+    ids=["guest-from-another-tenant", "personal-microsoft-account-guest"],
+)
+def test_a_guest_of_the_tenant_is_refused(microsoft, client, account, idp):
+    response = microsoft.sign_in(client, email="jane.doe@example.org", idp=idp)
+
+    assert error_code(response) == "unknown"
+    assert not is_signed_in(client)
+    assert not SocialAccount.objects.exists()
+
+
+def test_a_member_whose_token_names_the_tenant_as_identity_provider_signs_in(
+    microsoft, client, account
+):
+    tenant = get_settings().tenant_id
+    idp = f"https://login.microsoftonline.com/{tenant}/v2.0"
+
+    response = microsoft.sign_in(client, email="jane.doe@example.org", idp=idp)
+
+    assert error_code(response) is None
+    assert is_signed_in(client)
 
 
 def test_first_sign_in_links_the_account_by_email_and_removes_the_password(

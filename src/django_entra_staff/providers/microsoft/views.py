@@ -41,18 +41,24 @@ class MicrosoftGraphOAuth2Adapter(AllauthMicrosoftGraphOAuth2Adapter):
         return super().complete_login(request, app, token, **kwargs)
 
     def _verify_tenant(self, app, token_response):
-        tenant_id = self._tenant_id()
         id_token = token_response.get("id_token")
         if not id_token:
             raise OAuth2Error("The token response carries no id_token.")
-        login_url = self._login_url()
-        jwtkit.verify_and_decode(
+        issuer = self._build_tenant_url("/v2.0")
+        claims = jwtkit.verify_and_decode(
             credential=id_token,
-            keys_url=f"{login_url}/{tenant_id}/discovery/v2.0/keys",
-            issuer=f"{login_url}/{tenant_id}/v2.0",
+            keys_url=self._build_tenant_url("/discovery/v2.0/keys"),
+            issuer=issuer,
             audience=app.client_id,
             lookup_kid=jwtkit.lookup_kid_jwk,
         )
+        # A B2B guest gets a token from the tenant's issuer too, so the issuer
+        # alone lets guests in. Entra's `idp` claim names who authenticated the
+        # person: absent or equal to the issuer for the tenant's own members, and
+        # another tenant's STS URI or `live.com` for a guest.
+        idp = claims.get("idp")
+        if idp is not None and idp != issuer:
+            raise OAuth2Error("The id_token belongs to a guest of the tenant.")
 
 
 oauth2_login = OAuth2LoginView.adapter_view(MicrosoftGraphOAuth2Adapter)

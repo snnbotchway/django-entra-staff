@@ -153,7 +153,7 @@ Also needed:
 
 3. The tenant comes only from `ENTRA_STAFF["TENANT_ID"]`. Do not set the provider's own `TENANT` setting; it is ignored.
 
-The package checks the token's signature, issuer (which contains the tenant), audience and expiry before it links or signs anyone in. A token from any other tenant, including guests of yours, is refused.
+The package checks the token's signature, issuer (which contains the tenant), audience and expiry before it links or signs anyone in. A token from any other tenant is refused. Guests of your tenant (B2B guests from another tenant, or personal Microsoft accounts you invited) are refused too: their token's `idp` claim names their home identity provider instead of your tenant's issuer. Give such people a member account in your tenant, or a password Account.
 
 Refusals come back to the page named in `socialaccount_login_error` as `?error=<code>&error_process=login`:
 
@@ -165,7 +165,7 @@ Refusals come back to the page named in `socialaccount_login_error` as `?error=<
 | `no_work_email` | Microsoft gave no email address (Open to staff only). |
 | `connect_not_supported` | Someone asked to connect a Microsoft account by hand. Links are made only at first sign-in. |
 
-Any other failure, such as a token from the wrong tenant, comes back as `error=unknown`.
+Any other failure, such as a token from the wrong tenant or from a guest, comes back as `error=unknown`.
 
 ### Django admin
 

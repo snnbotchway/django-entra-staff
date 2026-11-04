@@ -95,7 +95,7 @@ def _jwks():
     return {"keys": [jwk]}
 
 
-def _id_token(tid, uid):
+def _id_token(tid, uid, idp=None):
     client_id = settings.SOCIALACCOUNT_PROVIDERS["microsoft"]["APP"]["client_id"]
     now = int(time.time())
     claims = {
@@ -107,6 +107,8 @@ def _id_token(tid, uid):
         "sub": uid,
         "tid": tid,
     }
+    if idp:
+        claims["idp"] = idp
     return jwt.encode(claims, _signing_key(), algorithm="RS256", headers={"kid": KID})
 
 
@@ -142,11 +144,14 @@ class FakeMicrosoft:
     def __init__(self):
         self.tid = None
         self.uid = None
+        self.idp = None
         self.profile = {}
 
-    def sign_in(self, client, *, email, uid="uid-1", tid=None, process="login"):
+    def sign_in(self, client, *, email, uid="uid-1", tid=None, idp=None, process="login"):
+        """`idp` sets the id_token's identity provider claim, as Entra does for a guest."""
         self.tid = tid or get_settings().tenant_id
         self.uid = uid
+        self.idp = idp
         self.profile = {
             "id": uid,
             "mail": email,
@@ -172,7 +177,7 @@ class FakeMicrosoft:
                 "access_token": "fake-access-token",
                 "token_type": "Bearer",
                 "expires_in": 3600,
-                "id_token": _id_token(self.tid, self.uid),
+                "id_token": _id_token(self.tid, self.uid, self.idp),
             }
             return _json_response(200, token)
         if method == "GET" and url == keys_url:
