@@ -4,9 +4,19 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.core import mail
 
-from tests.conftest import API, PASSWORD, link_microsoft
+from tests.conftest import (
+    API,
+    PASSWORD,
+    is_signed_in,
+    link_microsoft,
+    sign_in,
+    totp_code,
+    totp_secret_of,
+)
 
 pytestmark = pytest.mark.django_db
+
+NEW_PASSWORD = "new correct horse battery"
 
 
 def request_reset(client, email):
@@ -61,3 +71,36 @@ def test_the_reset_request_answers_the_same_way_whatever_the_email(client):
     ]
 
     assert all(response.json() == {"status": 200} for response in responses)
+
+
+def test_after_a_reset_the_next_sign_in_still_needs_the_second_step(
+    client, second_step_account
+):
+    request_reset(client, second_step_account.email)
+    response = client.post(
+        f"{API}/auth/password/reset",
+        {"key": reset_key_from_mail(), "password": NEW_PASSWORD},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 401
+    assert not is_signed_in(client)
+
+    response = sign_in(client, second_step_account.email, NEW_PASSWORD)
+
+    assert response.status_code == 401
+    assert {
+        "id": "mfa_authenticate",
+        "is_pending": True,
+        "types": ["recovery_codes", "totp"],
+    } in response.json()["data"]["flows"]
+    assert not is_signed_in(client)
+
+    response = client.post(
+        f"{API}/auth/2fa/authenticate",
+        {"code": totp_code(totp_secret_of(second_step_account))},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200
+    assert is_signed_in(client)

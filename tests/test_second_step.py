@@ -2,18 +2,18 @@ import pytest
 from allauth.mfa.models import Authenticator
 from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
 from allauth.mfa.signals import authenticator_added
-from allauth.mfa.totp.internal.auth import (
-    TOTP,
-    format_hotp_value,
-    generate_totp_secret,
-    hotp_value,
-    yield_hotp_counters_from_time,
-)
-from allauth.mfa.utils import decrypt
+from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from tests.conftest import API, PASSWORD, is_signed_in, sign_in
+from tests.conftest import (
+    API,
+    PASSWORD,
+    is_signed_in,
+    sign_in,
+    totp_code,
+    totp_secret_of,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -21,23 +21,6 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def account():
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
-
-
-@pytest.fixture
-def second_step_account(account):
-    TOTP.activate(account, generate_totp_secret())
-    RecoveryCodes.activate(account)
-    return account
-
-
-def totp_code(secret):
-    counter = next(yield_hotp_counters_from_time())
-    return format_hotp_value(hotp_value(secret, counter))
-
-
-def totp_secret_of(account):
-    authenticator = Authenticator.objects.get(user=account, type=Authenticator.Type.TOTP)
-    return decrypt(authenticator.data["secret"])
 
 
 def recovery_codes_of(account):

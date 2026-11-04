@@ -8,6 +8,16 @@ from urllib.parse import parse_qs, urlparse
 import jwt
 import pytest
 import requests
+from allauth.mfa.models import Authenticator
+from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
+from allauth.mfa.totp.internal.auth import (
+    TOTP,
+    format_hotp_value,
+    generate_totp_secret,
+    hotp_value,
+    yield_hotp_counters_from_time,
+)
+from allauth.mfa.utils import decrypt
 from allauth.socialaccount.models import SocialAccount
 from cryptography.hazmat.primitives.asymmetric import rsa
 from django.conf import settings
@@ -37,6 +47,24 @@ def is_signed_in(client):
 def link_microsoft(account, uid="uid-1"):
     """Give the Account the Microsoft link row, whatever way it was made."""
     return SocialAccount.objects.create(user=account, provider="microsoft", uid=uid)
+
+
+@pytest.fixture
+def second_step_account(account):
+    """An Account that has set up its Second step (TOTP and recovery codes)."""
+    TOTP.activate(account, generate_totp_secret())
+    RecoveryCodes.activate(account)
+    return account
+
+
+def totp_code(secret):
+    counter = next(yield_hotp_counters_from_time())
+    return format_hotp_value(hotp_value(secret, counter))
+
+
+def totp_secret_of(account):
+    authenticator = Authenticator.objects.get(user=account, type=Authenticator.Type.TOTP)
+    return decrypt(authenticator.data["secret"])
 
 
 @pytest.fixture(autouse=True)
