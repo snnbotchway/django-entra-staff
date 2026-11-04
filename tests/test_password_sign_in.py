@@ -2,7 +2,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 
-from tests.conftest import API, PASSWORD, is_signed_in, sign_in
+from tests.conftest import API, PASSWORD, is_signed_in, link_microsoft, sign_in
 
 pytestmark = pytest.mark.django_db
 
@@ -13,6 +13,26 @@ def account():
 
 
 def test_wrong_password_gets_allauths_error(client, account):
+    response = sign_in(client, account.email, "wrong")
+
+    assert response.status_code == 400
+    assert response.json()["errors"][0]["code"] == "email_password_mismatch"
+    assert not is_signed_in(client)
+
+
+def test_a_linked_account_is_told_to_use_microsoft_signin(client, account):
+    link_microsoft(account)
+
+    response = sign_in(client, account.email, PASSWORD)
+
+    assert response.status_code == 400
+    assert response.json()["errors"][0]["code"] == "use_microsoft_signin"
+    assert not is_signed_in(client)
+
+
+def test_a_linked_account_with_a_wrong_password_gets_the_usual_error(client, account):
+    link_microsoft(account)
+
     response = sign_in(client, account.email, "wrong")
 
     assert response.status_code == 400

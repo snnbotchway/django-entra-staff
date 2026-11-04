@@ -1,6 +1,5 @@
 import pytest
 from allauth.mfa.models import Authenticator
-from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
 from allauth.mfa.signals import authenticator_added
 from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from django.contrib.auth import get_user_model
@@ -21,13 +20,6 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def account():
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
-
-
-@pytest.fixture
-def second_step_account(account):
-    TOTP.activate(account, generate_totp_secret())
-    RecoveryCodes.activate(account)
-    return account
 
 
 def recovery_codes_of(account):

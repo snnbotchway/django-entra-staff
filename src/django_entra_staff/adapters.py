@@ -10,11 +10,35 @@ from .conf import SignUpRule, get_settings
 from .services import set_access_groups
 from .signals import account_signed_up_open_to_staff, microsoft_link_made
 
+MICROSOFT_PROVIDER_ID = "microsoft"
+
+
+def _has_microsoft_link(account):
+    return SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).exists()
+
 
 class AccountAdapter(DefaultAccountAdapter):
+    error_messages = {
+        **DefaultAccountAdapter.error_messages,
+        "use_microsoft_signin": _("Use Microsoft sign-in for this account."),
+    }
+
     def is_open_for_signup(self, request):
         """Nobody creates their own Account with a password."""
         return False
+
+    def authenticate(self, request, **credentials):
+        user = super().authenticate(request, **credentials)
+        if user is not None and _has_microsoft_link(user):
+            # The password was right, so the refusal can say why; a wrong
+            # password keeps allauth's ordinary error, so linked Accounts do
+            # not stand out.
+            raise self.validation_error("use_microsoft_signin")
+        return user
+
+    def send_password_reset_mail(self, user, email, context):
+        if user.has_usable_password() and not _has_microsoft_link(user):
+            super().send_password_reset_mail(user, email, context)
 
     def get_login_stages(self):
         stages = super().get_login_stages()
@@ -54,7 +78,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             if get_settings().sign_up_rule is SignUpRule.OPEN_TO_STAFF:
                 self._sign_up(request, sociallogin)
             return
-        if SocialAccount.objects.filter(provider="microsoft", user=account).exists():
+        if SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).exists():
             # The email match only happens when no Microsoft link exists yet, so
             # any link on the matched Account belongs to a different person.
             raise self.validation_error("account_already_linked")
