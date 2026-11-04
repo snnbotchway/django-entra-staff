@@ -9,13 +9,14 @@ from django.http import Http404
 from django.urls import NoReverseMatch, resolve, reverse
 from django.utils.module_loading import import_string
 
+from .adapters import AccountAdapter, MFAAdapter, SocialAccountAdapter, dotted_path
 from .conf import MICROSOFT_NEEDS_TENANT_ID_MESSAGE, SETTING_NAME, CheckId, get_settings, validate
 from .models import AbstractAccount
 from .providers.microsoft.views import oauth2_callback
 
-PACKAGE_ADAPTER = "django_entra_staff.adapters.AccountAdapter"
-PACKAGE_SOCIAL_ADAPTER = "django_entra_staff.adapters.SocialAccountAdapter"
-PACKAGE_MFA_ADAPTER = "django_entra_staff.adapters.MFAAdapter"
+PACKAGE_ADAPTER = dotted_path(AccountAdapter)
+PACKAGE_SOCIAL_ADAPTER = dotted_path(SocialAccountAdapter)
+PACKAGE_MFA_ADAPTER = dotted_path(MFAAdapter)
 DJANGO_PASSWORD_BACKEND = "django.contrib.auth.backends.ModelBackend"
 PACKAGE_MICROSOFT_APP = "django_entra_staff.providers.microsoft"
 ALLAUTH_MICROSOFT_APP = "allauth.socialaccount.providers.microsoft"

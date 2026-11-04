@@ -14,7 +14,7 @@ from .signals import account_signed_up_open_to_staff, microsoft_link_made
 from .stages import ReplacePasswordStage, SecondStepAuthenticateStage, SecondStepSetupStage
 
 
-def _dotted(cls) -> str:
+def dotted_path(cls) -> str:
     return f"{cls.__module__}.{cls.__qualname__}"
 
 
@@ -51,11 +51,11 @@ class AccountAdapter(DefaultAccountAdapter):
 
     def get_login_stages(self):
         stages = super().get_login_stages()
-        index = stages.index(_dotted(AllauthAuthenticateStage))
+        index = stages.index(dotted_path(AllauthAuthenticateStage))
         stages[index : index + 1] = [
-            _dotted(SecondStepAuthenticateStage),
-            _dotted(SecondStepSetupStage),
-            _dotted(ReplacePasswordStage),
+            dotted_path(SecondStepAuthenticateStage),
+            dotted_path(SecondStepSetupStage),
+            dotted_path(ReplacePasswordStage),
         ]
         return stages
 
