@@ -52,7 +52,8 @@ def check_settings(app_configs, **kwargs):
     if mfa_settings.PASSKEY_SIGNUP_ENABLED:
         errors.append(
             Error(
-                "MFA_PASSKEY_SIGNUP_ENABLED must stay off: nobody creates an Account with a passkey.",
+                "MFA_PASSKEY_SIGNUP_ENABLED must stay off: nobody creates an Account"
+                " with a passkey.",
                 id=CheckId.PASSKEY_SIGNUP_ON.value,
             )
         )
