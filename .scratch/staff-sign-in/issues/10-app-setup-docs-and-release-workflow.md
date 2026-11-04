@@ -1,6 +1,6 @@
 # 10: App setup docs and PyPI release workflow
 
-Status: open
+Status: done
 Labels: ready-for-agent
 Blocked by: 09
 
