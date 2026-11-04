@@ -161,6 +161,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             account_signed_up_open_to_staff.send(
                 sender=type(account), account=account, acting_account=None
             )
+            microsoft_link_made.send(sender=type(account), account=account, acting_account=None)
 
     def is_open_for_signup(self, request, sociallogin):
         """The Sign-up rule: Invite only refuses here; Open to staff makes the

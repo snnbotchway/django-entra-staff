@@ -245,7 +245,7 @@ In `django_entra_staff.signals`. Each is sent with the Account class as `sender`
 
 | Signal | Sent when |
 |---|---|
-| `microsoft_link_made` | A first Microsoft sign-in linked an Account. |
+| `microsoft_link_made` | A first Microsoft sign-in linked an Account, including one Open to staff has just made. |
 | `account_signed_up_open_to_staff` | Open to staff made an Account. |
 | `access_groups_changed` | Access groups changed. Also has `previous_groups` and `groups` (frozensets). |
 | `account_blocked`, `account_unblocked` | An Account was blocked or unblocked. |
