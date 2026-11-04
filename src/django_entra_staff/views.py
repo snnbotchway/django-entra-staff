@@ -3,6 +3,7 @@ from http import HTTPStatus
 from allauth.account.adapter import get_adapter as get_account_adapter
 from allauth.account.internal.flows.login import get_authentication_records
 from allauth.account.stages import LoginStageController
+from allauth.headless.account.views import ManageEmailView
 from allauth.headless.adapter import get_adapter as get_headless_adapter
 from allauth.headless.base.response import (
     APIResponse,
@@ -27,6 +28,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from .adapters import removes_last_second_step
+from .services import has_microsoft_link
 from .stages import SECOND_STEP_TYPES, ReplacePasswordStage, SecondStepSetupStage
 
 
@@ -147,6 +149,29 @@ class GuardedManageTOTPView(ManageTOTPView):
         if authenticator and not get_mfa_adapter().can_delete_authenticator(authenticator):
             return _cannot_delete_response(request)
         return super().delete(request, *args, **kwargs)
+
+
+class GuardedManageEmailView(ManageEmailView):
+    """allauth's email management, refusing to add an address or make one primary
+    for an Account with a Microsoft link.
+
+    The Account's email is what the first Microsoft sign-in matched. Making
+    another address primary rewrites it, and allauth does that for an unverified
+    address, so a linked person could take a colleague's address. Listing,
+    deleting a non-primary address and resending a verification stay allowed.
+    """
+
+    def post(self, request, *args, **kwargs):
+        return self._refuse_if_linked() or super().post(request, *args, **kwargs)
+
+    def patch(self, request, *args, **kwargs):
+        return self._refuse_if_linked() or super().patch(request, *args, **kwargs)
+
+    def _refuse_if_linked(self):
+        if not has_microsoft_link(self.user):
+            return None
+        error = get_account_adapter().validation_error("email_change_not_supported")
+        return ErrorResponse(self.request, status=HTTPStatus.FORBIDDEN, exception=error)
 
 
 class SecondStepSetupResponse(BaseAuthenticationResponse):

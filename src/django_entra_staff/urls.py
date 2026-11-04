@@ -5,6 +5,7 @@ from allauth.mfa.models import Authenticator
 from django.urls import include, path
 
 from .views import (
+    GuardedManageEmailView,
     GuardedManageTOTPView,
     GuardedManageWebAuthnView,
     ReplacePasswordView,
@@ -28,6 +29,7 @@ def _client_patterns(client, setup_urlname, replace_urlname):
             ReplacePasswordView.as_api_view(client=client),
             name=replace_urlname,
         ),
+        path(f"{prefix}/account/email", GuardedManageEmailView.as_api_view(client=client)),
     ]
     if Authenticator.Type.WEBAUTHN in mfa_settings.SUPPORTED_TYPES:
         patterns.extend(

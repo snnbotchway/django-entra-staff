@@ -72,6 +72,7 @@ MFA_SUPPORTED_TYPES = ["recovery_codes", "totp", "webauthn"]
 HEADLESS_ONLY = True
 HEADLESS_FRONTEND_URLS = {
     "socialaccount_login_error": "/next",
+    "account_confirm_email": "/confirm-email/{key}",
     "account_signup": "/sign-up",
     "account_reset_password_from_key": "/reset-password/{key}",
 }

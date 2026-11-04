@@ -22,6 +22,7 @@ class AccountAdapter(DefaultAccountAdapter):
     error_messages = {
         **DefaultAccountAdapter.error_messages,
         "use_microsoft_signin": _("Use Microsoft sign-in for this account."),
+        "email_change_not_supported": _("The email address of this account cannot be changed."),
     }
 
     def is_open_for_signup(self, request):
