@@ -1,9 +1,12 @@
+import importlib
+
 from allauth import app_settings as allauth_settings
 from allauth.account import app_settings as account_settings
 from allauth.headless import app_settings as headless_settings
 from allauth.mfa import app_settings as mfa_settings
 from allauth.mfa.models import Authenticator
 from allauth.socialaccount import app_settings as socialaccount_settings
+from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.checks import Error, register
@@ -59,18 +62,25 @@ def _microsoft_is_set_up() -> bool:
 
 
 def _other_provider_apps() -> list[str]:
-    """allauth's provider apps other than Microsoft, which E012 refuses on its own."""
-    return [
-        app
-        for app in settings.INSTALLED_APPS
-        if app.startswith(f"{ALLAUTH_PROVIDERS_PACKAGE}.")
-        and not _is_app(app, ALLAUTH_MICROSOFT_APP)
-    ]
+    """Installed apps that bring a sign-in provider other than Microsoft.
 
-
-def _is_app(entry: str, app: str) -> bool:
-    """Whether an INSTALLED_APPS entry is the app's module or one of its AppConfigs."""
-    return entry == app or entry.startswith(f"{app}.")
+    allauth registers a provider from the `provider` module of any installed
+    app, not only its own, so every app is looked at the way allauth's registry
+    does. allauth's own Microsoft app shares the Microsoft id; E012 refuses it.
+    """
+    found = []
+    for app_config in apps.get_app_configs():
+        module_name = f"{app_config.name}.provider"
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError as error:
+            if error.name != module_name:
+                raise
+            continue
+        provider_ids = {cls.id for cls in getattr(module, "provider_classes", [])}
+        if provider_ids - {MICROSOFT_PROVIDER_ID}:
+            found.append(app_config.name)
+    return found
 
 
 def _microsoft_callback_is_the_packages() -> bool:

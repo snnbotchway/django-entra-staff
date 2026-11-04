@@ -215,7 +215,13 @@ def test_changing_the_email_while_verifying_it_at_sign_in_must_stay_off():
     assert "entra_staff.E029" in check_ids(ACCOUNT_EMAIL_VERIFICATION_SUPPORTS_CHANGE=True)
 
 
-def test_no_other_sign_in_provider_may_be_installed():
-    installed = [*settings.INSTALLED_APPS, "allauth.socialaccount.providers.google"]
-    with mock.patch.object(settings, "INSTALLED_APPS", installed):
+@pytest.mark.parametrize(
+    "provider_app", ["allauth.socialaccount.providers.google", "tests.otherprovider"]
+)
+def test_no_other_sign_in_provider_may_be_installed(provider_app):
+    with override_settings(INSTALLED_APPS=[*settings.INSTALLED_APPS, provider_app]):
         assert "entra_staff.E030" in check_ids()
+
+
+def test_the_packages_microsoft_provider_alone_passes():
+    assert "entra_staff.E030" not in check_ids()
