@@ -1,6 +1,7 @@
 from allauth.headless import app_settings as headless_settings
 from allauth.headless.constants import Client
 from allauth.mfa import app_settings as mfa_settings
+from allauth.mfa.models import Authenticator
 from django.urls import include, path
 
 from .views import (
@@ -28,7 +29,7 @@ def _client_patterns(client, setup_urlname, replace_urlname):
             name=replace_urlname,
         ),
     ]
-    if "webauthn" in mfa_settings.SUPPORTED_TYPES:
+    if Authenticator.Type.WEBAUTHN in mfa_settings.SUPPORTED_TYPES:
         patterns.extend(
             [
                 path(
@@ -42,7 +43,7 @@ def _client_patterns(client, setup_urlname, replace_urlname):
                 ),
             ]
         )
-    if "totp" in mfa_settings.SUPPORTED_TYPES:
+    if Authenticator.Type.TOTP in mfa_settings.SUPPORTED_TYPES:
         patterns.append(
             path(
                 f"{prefix}/account/authenticators/totp",

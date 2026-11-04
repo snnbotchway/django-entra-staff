@@ -30,15 +30,23 @@ from .adapters import removes_last_second_step
 from .stages import SECOND_STEP_TYPES, ReplacePasswordStage, SecondStepSetupStage
 
 
-class SecondStepSetupView(AuthenticationStageAPIView):
+class _SecondStepSetupBaseView(AuthenticationStageAPIView):
+    """Set-up of the first Second step, refused once the Account has one."""
+
     stage_class = SecondStepSetupStage
-    input_class = {"POST": ActivateTOTPInput}
 
     def handle(self, request, *args, **kwargs):
         self.stage = LoginStageController.enter(request, self.stage_class.key)
         if self.stage and is_mfa_enabled(self.stage.login.user, SECOND_STEP_TYPES):
             return ConflictResponse(request)
         return super().handle(request, *args, **kwargs)
+
+    def get_input_kwargs(self):
+        return {"user": self.stage.login.user}
+
+
+class SecondStepSetupView(_SecondStepSetupBaseView):
+    input_class = {"POST": ActivateTOTPInput}
 
     def get(self, request, *args, **kwargs):
         user = self.stage.login.user
@@ -51,19 +59,9 @@ class SecondStepSetupView(AuthenticationStageAPIView):
         self.stage.exit()
         return SecondStepSetupResponse(request, recovery_codes)
 
-    def get_input_kwargs(self):
-        return {"user": self.stage.login.user}
 
-
-class SecondStepWebAuthnSetupView(AuthenticationStageAPIView):
-    stage_class = SecondStepSetupStage
+class SecondStepWebAuthnSetupView(_SecondStepSetupBaseView):
     input_class = {"POST": AddWebAuthnInput}
-
-    def handle(self, request, *args, **kwargs):
-        self.stage = LoginStageController.enter(request, self.stage_class.key)
-        if self.stage and is_mfa_enabled(self.stage.login.user, SECOND_STEP_TYPES):
-            return ConflictResponse(request)
-        return super().handle(request, *args, **kwargs)
 
     def get(self, request, *args, **kwargs):
         creation_options = begin_registration(self.stage.login.user, passwordless=False)
@@ -82,9 +80,6 @@ class SecondStepWebAuthnSetupView(AuthenticationStageAPIView):
         )
         self.stage.exit()
         return SecondStepSetupResponse(request, recovery_codes)
-
-    def get_input_kwargs(self):
-        return {"user": self.stage.login.user}
 
 
 def activate_second_step(request, user, secret):

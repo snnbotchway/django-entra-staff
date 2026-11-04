@@ -13,8 +13,7 @@ from django.template.response import TemplateResponse
 from django.utils.translation import gettext_lazy as _
 
 from . import services
-from .adapters import MICROSOFT_PROVIDER_ID
-from .conf import get_settings
+from .conf import MICROSOFT_PROVIDER_ID, get_settings
 from .errors import ErrorCode, StaffError
 from .stages import SECOND_STEP_TYPES
 
@@ -83,6 +82,8 @@ class AccountAdmin(admin.ModelAdmin):
 
     @admin.display(description=_("Microsoft link"))
     def microsoft_link(self, account):
+        # `services.has_microsoft_link` would cost a query per row; this reads
+        # the prefetched links instead.
         linked = any(
             social_account.provider == MICROSOFT_PROVIDER_ID
             for social_account in account.socialaccount_set.all()
