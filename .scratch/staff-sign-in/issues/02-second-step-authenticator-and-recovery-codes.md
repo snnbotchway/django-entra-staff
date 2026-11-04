@@ -1,6 +1,6 @@
 # 02: Second step with authenticator code and recovery codes
 
-Status: open
+Status: done
 Labels: ready-for-agent
 Blocked by: 01
 
