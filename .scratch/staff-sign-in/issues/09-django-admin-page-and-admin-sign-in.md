@@ -1,6 +1,6 @@
 # 09: Django admin page and admin sign-in
 
-Status: open
+Status: done
 Labels: ready-for-agent
 Blocked by: 03, 05, 07, 08
 
