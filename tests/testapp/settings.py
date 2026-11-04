@@ -4,6 +4,7 @@ SECRET_KEY = "test-only"
 DEBUG = False
 ALLOWED_HOSTS = ["testserver"]
 ROOT_URLCONF = "tests.testapp.urls"
+LOGIN_URL = "/sign-in/"
 USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
