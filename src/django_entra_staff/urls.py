@@ -1,40 +1,54 @@
 from allauth.headless import app_settings as headless_settings
 from allauth.headless.constants import Client
 from allauth.mfa import app_settings as mfa_settings
-from django.urls import path
+from django.urls import include, path
 
-from .views import SecondStepSetupView, SecondStepWebAuthnSetupView
+from .views import (
+    GuardedManageTOTPView,
+    GuardedManageWebAuthnView,
+    SecondStepSetupView,
+    SecondStepWebAuthnSetupView,
+)
+
+
+def _client_patterns(client, setup_urlname):
+    """The package's own endpoints for one headless client. They shadow the
+    allauth endpoints they must police, so they come before allauth's include."""
+    prefix = "browser/v1" if client == Client.BROWSER else "app/v1"
+    patterns = [
+        path(
+            f"{prefix}/auth/2fa/setup",
+            SecondStepSetupView.as_api_view(client=client),
+            name=setup_urlname,
+        )
+    ]
+    if "webauthn" in mfa_settings.SUPPORTED_TYPES:
+        patterns.extend(
+            [
+                path(
+                    f"{prefix}/auth/2fa/setup/webauthn",
+                    SecondStepWebAuthnSetupView.as_api_view(client=client),
+                    name=f"{setup_urlname}_webauthn",
+                ),
+                path(
+                    f"{prefix}/account/authenticators/webauthn",
+                    GuardedManageWebAuthnView.as_api_view(client=client),
+                ),
+            ]
+        )
+    if "totp" in mfa_settings.SUPPORTED_TYPES:
+        patterns.append(
+            path(
+                f"{prefix}/account/authenticators/totp",
+                GuardedManageTOTPView.as_api_view(client=client),
+            )
+        )
+    return patterns
+
 
 urlpatterns = []
 if Client.BROWSER in headless_settings.CLIENTS:
-    urlpatterns.append(
-        path(
-            "browser/v1/auth/2fa/setup",
-            SecondStepSetupView.as_api_view(client=Client.BROWSER),
-            name="second_step_setup",
-        )
-    )
-    if "webauthn" in mfa_settings.SUPPORTED_TYPES:
-        urlpatterns.append(
-            path(
-                "browser/v1/auth/2fa/setup/webauthn",
-                SecondStepWebAuthnSetupView.as_api_view(client=Client.BROWSER),
-                name="second_step_setup_webauthn",
-            )
-        )
+    urlpatterns.extend(_client_patterns(Client.BROWSER, "second_step_setup"))
 if Client.APP in headless_settings.CLIENTS:
-    urlpatterns.append(
-        path(
-            "app/v1/auth/2fa/setup",
-            SecondStepSetupView.as_api_view(client=Client.APP),
-            name="second_step_setup_app",
-        )
-    )
-    if "webauthn" in mfa_settings.SUPPORTED_TYPES:
-        urlpatterns.append(
-            path(
-                "app/v1/auth/2fa/setup/webauthn",
-                SecondStepWebAuthnSetupView.as_api_view(client=Client.APP),
-                name="second_step_setup_webauthn_app",
-            )
-        )
+    urlpatterns.extend(_client_patterns(Client.APP, "second_step_setup_app"))
+urlpatterns.append(path("", include("allauth.headless.urls")))

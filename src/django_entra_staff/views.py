@@ -12,6 +12,7 @@ from allauth.headless.base.response import (
 from allauth.headless.base.views import AuthenticationStageAPIView
 from allauth.headless.internal.restkit.response import ErrorResponse
 from allauth.headless.mfa.inputs import ActivateTOTPInput, AddWebAuthnInput
+from allauth.headless.mfa.views import ManageTOTPView, ManageWebAuthnView
 from allauth.mfa import signals
 from allauth.mfa.adapter import get_adapter as get_mfa_adapter
 from allauth.mfa.base.internal.flows import post_authentication
@@ -127,6 +128,39 @@ def _activate_recovery_codes(request, user, added):
 
         transaction.on_commit(on_commit)
     return recovery_codes
+
+
+def _removes_last_second_step(user, authenticators):
+    remaining = (
+        Authenticator.objects.filter(user=user)
+        .exclude(type=Authenticator.Type.RECOVERY_CODES)
+        .exclude(pk__in=[authenticator.pk for authenticator in authenticators])
+    )
+    return not remaining.exists()
+
+
+def _cannot_delete_response(request):
+    error = get_mfa_adapter().validation_error("cannot_delete_authenticator")
+    return ErrorResponse(request, status=HTTPStatus.CONFLICT, exception=error)
+
+
+class GuardedManageWebAuthnView(ManageWebAuthnView):
+    """allauth's passkey management, refusing to remove the last Second step."""
+
+    def delete(self, request, *args, **kwargs):
+        if _removes_last_second_step(request.user, self.input.cleaned_data["authenticators"]):
+            return _cannot_delete_response(request)
+        return super().delete(request, *args, **kwargs)
+
+
+class GuardedManageTOTPView(ManageTOTPView):
+    """allauth's authenticator management, refusing to remove the last Second step."""
+
+    def delete(self, request, *args, **kwargs):
+        authenticator = self._get_authenticator()
+        if authenticator and _removes_last_second_step(request.user, [authenticator]):
+            return _cannot_delete_response(request)
+        return super().delete(request, *args, **kwargs)
 
 
 class SecondStepSetupResponse(BaseAuthenticationResponse):
