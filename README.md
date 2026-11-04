@@ -63,7 +63,7 @@ INSTALLED_APPS = [
     "allauth.mfa",
     "allauth.headless",
     "allauth.socialaccount",
-    "django_entra_staff.providers.microsoft",   # instead of allauth's Microsoft provider
+    "django_entra_staff.providers.microsoft",  # instead of allauth's Microsoft provider
     "django_entra_staff",
 ]
 
@@ -114,7 +114,7 @@ The group names are yours; the package names none. Unknown keys are refused.
 
 ```python
 ACCOUNT_ADAPTER = "django_entra_staff.adapters.AccountAdapter"
-SOCIALACCOUNT_ADAPTER = "django_entra_staff.adapters.SocialAccountAdapter"   # with Microsoft
+SOCIALACCOUNT_ADAPTER = "django_entra_staff.adapters.SocialAccountAdapter"  # with Microsoft
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
@@ -129,9 +129,9 @@ A headless-only App has no allauth pages, so tell allauth and Django where the A
 
 ```python
 HEADLESS_FRONTEND_URLS = {
-    "socialaccount_login_error": "/sign-in/error",              # Microsoft refusals arrive here
+    "socialaccount_login_error": "/sign-in/error",  # Microsoft refusals arrive here
     "account_signup": "/sign-up",
-    "account_reset_password_from_key": "/reset-password/{key}", # the link in the reset email
+    "account_reset_password_from_key": "/reset-password/{key}",  # the link in the reset email
 }
 LOGIN_URL = "/sign-in/"
 ```
@@ -148,9 +148,7 @@ Also needed:
 2. Give allauth the client in settings, or as a `SocialApp` row:
 
    ```python
-   SOCIALACCOUNT_PROVIDERS = {
-       "microsoft": {"APP": {"client_id": "...", "secret": "..."}}
-   }
+   SOCIALACCOUNT_PROVIDERS = {"microsoft": {"APP": {"client_id": "...", "secret": "..."}}}
    ```
 
 3. The tenant comes only from `ENTRA_STAFF["TENANT_ID"]`. Do not set the provider's own `TENANT` setting; it is ignored.
