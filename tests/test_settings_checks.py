@@ -129,13 +129,26 @@ def test_emailed_code_flows_must_stay_off(setting, expected):
     assert expected in check_ids(**{setting: True})
 
 
-def test_djangos_password_backend_must_not_be_installed():
-    backends = [
-        "django.contrib.auth.backends.ModelBackend",
-        "allauth.account.auth_backends.AuthenticationBackend",
-    ]
+ALLAUTH_BACKEND = "allauth.account.auth_backends.AuthenticationBackend"
 
+
+@pytest.mark.parametrize(
+    "backends",
+    [
+        ["django.contrib.auth.backends.ModelBackend", ALLAUTH_BACKEND],
+        ["django.contrib.auth.backends.RemoteUserBackend"],
+        [ALLAUTH_BACKEND, "tests.testapp.backends.Missing"],
+    ],
+    ids=["model-backend", "model-backend-subclass", "unknown-backend"],
+)
+def test_only_allauths_authentication_backend_may_be_installed(backends):
     assert "entra_staff.E023" in check_ids(AUTHENTICATION_BACKENDS=backends)
+
+
+def test_a_subclass_of_allauths_authentication_backend_is_fine():
+    backends = ["tests.testapp.backends.StaffBackend"]
+
+    assert "entra_staff.E023" not in check_ids(AUTHENTICATION_BACKENDS=backends)
 
 
 MICROSOFT_APP = {"client_id": "test-client-id", "secret": "test-secret"}

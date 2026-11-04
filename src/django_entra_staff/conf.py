@@ -59,7 +59,7 @@ class CheckId(StrEnum):
     MFA_ADAPTER_NOT_THE_PACKAGES = "entra_staff.E020"
     LOGIN_BY_CODE_ON = "entra_staff.E021"
     PASSWORD_RESET_BY_CODE_ON = "entra_staff.E022"
-    DJANGO_PASSWORD_BACKEND_ON = "entra_staff.E023"
+    AUTHENTICATION_BACKEND_NOT_ALLAUTHS = "entra_staff.E023"
     EMAIL_AUTHENTICATION_ON = "entra_staff.E024"
     MFA_TRUST_ON = "entra_staff.E025"
     PREVENT_ENUMERATION_OFF = "entra_staff.E026"

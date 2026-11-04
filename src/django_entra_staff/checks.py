@@ -27,7 +27,7 @@ from .views import GuardedManageEmailView, GuardedManageTOTPView, GuardedManageW
 PACKAGE_ADAPTER = dotted_path(AccountAdapter)
 PACKAGE_SOCIAL_ADAPTER = dotted_path(SocialAccountAdapter)
 PACKAGE_MFA_ADAPTER = dotted_path(MFAAdapter)
-DJANGO_PASSWORD_BACKEND = "django.contrib.auth.backends.ModelBackend"
+ALLAUTH_BACKEND = "allauth.account.auth_backends.AuthenticationBackend"
 PACKAGE_MICROSOFT_APP = "django_entra_staff.providers.microsoft"
 ALLAUTH_MICROSOFT_APP = "allauth.socialaccount.providers.microsoft"
 
@@ -44,6 +44,13 @@ GUARDED_ENDPOINTS = (
 def _subclass_of(setting, base):
     path = getattr(settings, setting, None)
     return path and issubclass(import_string(path), import_string(base))
+
+
+def _is_allauths_backend(path) -> bool:
+    try:
+        return issubclass(import_string(path), import_string(ALLAUTH_BACKEND))
+    except ImportError:
+        return False
 
 
 def _microsoft_is_set_up() -> bool:
@@ -228,15 +235,16 @@ def _allauth_path_errors():
                 id=CheckId.PASSWORD_RESET_BY_CODE_ON.value,
             )
         )
-    if DJANGO_PASSWORD_BACKEND in getattr(settings, "AUTHENTICATION_BACKENDS", []):
-        errors.append(
-            Error(
-                f"AUTHENTICATION_BACKENDS must not include {DJANGO_PASSWORD_BACKEND}: it"
-                " checks a password with no Microsoft link check. Use"
-                " allauth.account.auth_backends.AuthenticationBackend alone.",
-                id=CheckId.DJANGO_PASSWORD_BACKEND_ON.value,
+    for backend in settings.AUTHENTICATION_BACKENDS:
+        if not _is_allauths_backend(backend):
+            errors.append(
+                Error(
+                    f"AUTHENTICATION_BACKENDS must hold only {ALLAUTH_BACKEND} or a subclass of"
+                    f" it, not {backend}: any other backend can check a password with no"
+                    " Microsoft link check.",
+                    id=CheckId.AUTHENTICATION_BACKEND_NOT_ALLAUTHS.value,
+                )
             )
-        )
     return errors + _allauth_setting_errors()
 
 
