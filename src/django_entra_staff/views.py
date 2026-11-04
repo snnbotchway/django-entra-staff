@@ -85,21 +85,29 @@ class SecondStepWebAuthnSetupView(_SecondStepSetupBaseView):
 
 
 def activate_second_step(request, user, secret):
-    with transaction.atomic():
+    def add():
         totp_auth = TOTP.activate(user, secret).instance
         clear_totp_secret(request)
-        recovery_codes = _activate_recovery_codes(request, user, [totp_auth])
-    get_account_adapter(request).send_notification_mail("mfa/email/totp_activated", user)
-    post_authentication(request, totp_auth)
-    return recovery_codes.get_unused_codes()
+        return totp_auth
+
+    return _activate_first_second_step(request, user, add, "mfa/email/totp_activated")
 
 
 def activate_passkey_second_step(request, user, name, credential):
+    def add():
+        return WebAuthn.add(user, name, credential).instance
+
+    return _activate_first_second_step(request, user, add, "mfa/email/webauthn_added")
+
+
+def _activate_first_second_step(request, user, add, notification_template):
+    """Add the first Second step with its recovery codes, tell the person, and
+    record the sign-in as authenticated by it. Returns the recovery codes."""
     with transaction.atomic():
-        webauthn_auth = WebAuthn.add(user, name, credential).instance
-        recovery_codes = _activate_recovery_codes(request, user, [webauthn_auth])
-    get_account_adapter(request).send_notification_mail("mfa/email/webauthn_added", user)
-    post_authentication(request, webauthn_auth)
+        authenticator = add()
+        recovery_codes = _activate_recovery_codes(request, user, [authenticator])
+    get_account_adapter(request).send_notification_mail(notification_template, user)
+    post_authentication(request, authenticator)
     return recovery_codes.get_unused_codes()
 
 
