@@ -7,7 +7,8 @@ from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
 from .conf import SignUpRule, get_settings
-from .signals import microsoft_link_made
+from .services import set_access_groups
+from .signals import account_signed_up_open_to_staff, microsoft_link_made
 
 
 class AccountAdapter(DefaultAccountAdapter):
@@ -47,7 +48,9 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             return
         account = self._account_for(sociallogin)
         if account is None:
-            # Nobody to link: the Sign-up rule answers in is_open_for_signup.
+            # Nobody to link: the Sign-up rule answers.
+            if get_settings().sign_up_rule is SignUpRule.OPEN_TO_STAFF:
+                self._sign_up(request, sociallogin)
             return
         if SocialAccount.objects.filter(provider="microsoft", user=account).exists():
             # The email match only happens when no Microsoft link exists yet, so
@@ -70,7 +73,20 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             return None
         return get_user_model().objects.filter(email__iexact=email).first()
 
+    def _sign_up(self, request, sociallogin):
+        """Open to staff: the first Microsoft sign-in makes an Account with the
+        lowest access group and links it."""
+        with transaction.atomic():
+            account = get_user_model().objects.create_user(sociallogin.user.email)
+            sociallogin.connect(request, account)
+            set_access_groups(account, get_settings().lowest_access_group)
+            account_signed_up_open_to_staff.send(
+                sender=type(account), account=account, acting_account=None
+            )
+
     def is_open_for_signup(self, request, sociallogin):
+        """The Sign-up rule: Invite only refuses here; Open to staff makes the
+        Account at the first Microsoft sign-in, so the sign-up is open."""
         if get_settings().sign_up_rule is SignUpRule.INVITE_ONLY:
             raise self.validation_error("invite_only")
-        return super().is_open_for_signup(request, sociallogin)
+        return True
