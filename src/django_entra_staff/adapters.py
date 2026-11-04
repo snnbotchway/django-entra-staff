@@ -1,6 +1,7 @@
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.mfa.adapter import DefaultMFAAdapter
 from allauth.mfa.models import Authenticator
+from allauth.mfa.stages import AuthenticateStage as AllauthAuthenticateStage
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from allauth.socialaccount.providers.base import AuthProcess
 from django.contrib.auth import get_user_model
@@ -10,6 +11,11 @@ from django.utils.translation import gettext_lazy as _
 from .conf import MICROSOFT_PROVIDER_ID, SignUpRule, get_settings
 from .services import has_microsoft_link, set_access_groups
 from .signals import account_signed_up_open_to_staff, microsoft_link_made
+from .stages import ReplacePasswordStage, SecondStepAuthenticateStage, SecondStepSetupStage
+
+
+def _dotted(cls) -> str:
+    return f"{cls.__module__}.{cls.__qualname__}"
 
 
 class AccountAdapter(DefaultAccountAdapter):
@@ -44,10 +50,12 @@ class AccountAdapter(DefaultAccountAdapter):
 
     def get_login_stages(self):
         stages = super().get_login_stages()
-        index = stages.index("allauth.mfa.stages.AuthenticateStage")
-        stages[index] = "django_entra_staff.stages.SecondStepAuthenticateStage"
-        stages.insert(index + 1, "django_entra_staff.stages.SecondStepSetupStage")
-        stages.insert(index + 2, "django_entra_staff.stages.ReplacePasswordStage")
+        index = stages.index(_dotted(AllauthAuthenticateStage))
+        stages[index : index + 1] = [
+            _dotted(SecondStepAuthenticateStage),
+            _dotted(SecondStepSetupStage),
+            _dotted(ReplacePasswordStage),
+        ]
         return stages
 
 
@@ -73,7 +81,9 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
     error_messages = {
         **DefaultSocialAccountAdapter.error_messages,
         "invite_only": _("There is no account for this email address. Ask for access."),
-        "no_work_email": _("Microsoft sign-in gave no email address. Ask for access."),
+        "no_work_email": _(
+            "Your Microsoft account has no email address. Ask IT to add one, then try again."
+        ),
         "account_blocked": _("This account is blocked. Ask for access."),
         "account_already_linked": _(
             "This email address is already linked to another Microsoft account."
