@@ -1,6 +1,6 @@
 # 04: Leaver rule: refuse Password sign-in and Password reset for linked Accounts
 
-Status: open
+Status: done
 Labels: ready-for-agent
 Blocked by: 03
 
