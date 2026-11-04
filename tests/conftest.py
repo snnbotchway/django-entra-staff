@@ -13,6 +13,7 @@ from django.conf import settings
 from django.core.cache import cache
 
 from django_entra_staff.conf import get_settings
+from django_entra_staff.signals import microsoft_link_made
 
 API = "/_allauth/browser/v1"
 MICROSOFT_CALLBACK = "/microsoft/login/callback/"
@@ -150,8 +151,6 @@ def microsoft():
 @pytest.fixture
 def link_made_events():
     """The payloads of every microsoft_link_made sent during the test."""
-    from django_entra_staff.signals import microsoft_link_made
-
     events = []
 
     def receiver(sender, **kwargs):
