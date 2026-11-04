@@ -5,6 +5,8 @@ from allauth.mfa.models import Authenticator
 from allauth.mfa.stages import AuthenticateStage as AllauthAuthenticateStage
 from allauth.mfa.utils import is_mfa_enabled
 
+SECOND_STEP_TYPES = [Authenticator.Type.TOTP, Authenticator.Type.WEBAUTHN]
+
 
 class SecondStepAuthenticateStage(AllauthAuthenticateStage):
     """The Second step is a Password sign-in rule: Microsoft sign-in is never
@@ -26,7 +28,7 @@ class SecondStepSetupStage(LoginStage):
     def handle(self):
         if self.login.user is None or _used_social_sign_in(self.request, self.login.user):
             return None, True
-        if is_mfa_enabled(self.login.user, [Authenticator.Type.TOTP, Authenticator.Type.WEBAUTHN]):
+        if is_mfa_enabled(self.login.user, SECOND_STEP_TYPES):
             return None, True
         return headed_redirect_response(self.urlname), True
 

@@ -25,9 +25,7 @@ from allauth.mfa.webauthn.internal.auth import WebAuthn, begin_registration
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from .stages import SecondStepSetupStage
-
-SECOND_STEP_TYPES = [Authenticator.Type.TOTP, Authenticator.Type.WEBAUTHN]
+from .stages import SECOND_STEP_TYPES, SecondStepSetupStage
 
 
 class SecondStepSetupView(AuthenticationStageAPIView):
