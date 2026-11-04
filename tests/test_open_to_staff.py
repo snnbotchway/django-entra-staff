@@ -96,6 +96,17 @@ def test_an_invited_person_still_links_instead_of_signing_up(
 
 
 @override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF_ADDING)
+def test_a_microsoft_person_with_no_email_is_refused(microsoft, client, signup_events):
+    response = microsoft.sign_in(client, email="")
+
+    assert error_code(response) == "no_work_email"
+    assert not is_signed_in(client)
+    assert not get_user_model().objects.exists()
+    assert not SocialAccount.objects.exists()
+    assert signup_events == []
+
+
+@override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF_ADDING)
 def test_a_failing_sign_up_receiver_rolls_the_sign_up_back(microsoft, client):
     def failing_receiver(sender, **kwargs):
         raise RuntimeError("receiver failed")

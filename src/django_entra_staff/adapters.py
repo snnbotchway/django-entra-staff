@@ -28,6 +28,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
     error_messages = {
         **DefaultSocialAccountAdapter.error_messages,
         "invite_only": _("There is no account for this email address. Ask for access."),
+        "no_work_email": _("Microsoft sign-in gave no email address. Ask for access."),
         "account_blocked": _("This account is blocked. Ask for access."),
         "account_already_linked": _(
             "This email address is already linked to another Microsoft account."
@@ -76,6 +77,11 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
     def _sign_up(self, request, sociallogin):
         """Open to staff: the first Microsoft sign-in makes an Account with the
         lowest access group and links it."""
+        email = sociallogin.user.email
+        if not email:
+            # An Account is identified by its email; without one there is
+            # nobody to make an Account for.
+            raise self.validation_error("no_work_email")
         with transaction.atomic():
             account = get_user_model().objects.create_user(sociallogin.user.email)
             sociallogin.connect(request, account)
