@@ -1,4 +1,6 @@
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.mfa.adapter import DefaultMFAAdapter
+from allauth.mfa.models import Authenticator
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from allauth.socialaccount.providers.base import AuthProcess
 from django.contrib.auth import get_user_model
@@ -47,6 +49,24 @@ class AccountAdapter(DefaultAccountAdapter):
         stages.insert(index + 1, "django_entra_staff.stages.SecondStepSetupStage")
         stages.insert(index + 2, "django_entra_staff.stages.ReplacePasswordStage")
         return stages
+
+
+def removes_last_second_step(account, authenticators) -> bool:
+    """Whether removing `authenticators` would leave the Account with only
+    recovery codes, so a Password sign-in would have no Second step."""
+    remaining = (
+        Authenticator.objects.filter(user=account)
+        .exclude(type=Authenticator.Type.RECOVERY_CODES)
+        .exclude(pk__in=[authenticator.pk for authenticator in authenticators])
+    )
+    return not remaining.exists()
+
+
+class MFAAdapter(DefaultMFAAdapter):
+    def can_delete_authenticator(self, authenticator):
+        if removes_last_second_step(authenticator.user, [authenticator]):
+            return False
+        return super().can_delete_authenticator(authenticator)
 
 
 class SocialAccountAdapter(DefaultSocialAccountAdapter):

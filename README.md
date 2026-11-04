@@ -115,6 +115,8 @@ The group names are yours; the package names none. Unknown keys are refused.
 ```python
 ACCOUNT_ADAPTER = "django_entra_staff.adapters.AccountAdapter"
 SOCIALACCOUNT_ADAPTER = "django_entra_staff.adapters.SocialAccountAdapter"  # with Microsoft
+MFA_ADAPTER = "django_entra_staff.adapters.MFAAdapter"
+AUTHENTICATION_BACKENDS = ["allauth.account.auth_backends.AuthenticationBackend"]
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
@@ -123,7 +125,7 @@ MFA_SUPPORTED_TYPES = ["recovery_codes", "totp", "webauthn"]
 HEADLESS_ONLY = True
 ```
 
-The adapters may be subclassed. Leave `MFA_PASSKEY_LOGIN_ENABLED` and `MFA_PASSKEY_SIGNUP_ENABLED` off (their default).
+The adapters may be subclassed. Leave `MFA_PASSKEY_LOGIN_ENABLED`, `MFA_PASSKEY_SIGNUP_ENABLED`, `ACCOUNT_LOGIN_BY_CODE_ENABLED` and `ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED` off (their default): each is a way in or a way to add a password that skips the package's rules. `HEADLESS_ONLY` must be `True`, because allauth's own pages skip the package's endpoints. Do not add Django's `ModelBackend` to `AUTHENTICATION_BACKENDS`: it checks passwords without refusing linked Accounts.
 
 A headless-only App has no allauth pages, so tell allauth and Django where the App's own frontend lives. All three `HEADLESS_FRONTEND_URLS` entries are needed, and `LOGIN_URL` is where the Django admin sends people to sign in:
 
@@ -194,7 +196,7 @@ Being an App admin never grants Django admin access. Only IT and developers hold
 
 ### System checks
 
-`manage.py check` fails at start-up, before anyone signs in, when the settings above are inconsistent (ids `entra_staff.E001` to `E018`): a bad or incomplete `ENTRA_STAFF`, an `AUTH_USER_MODEL` that is not an Account, the package's adapters or Microsoft provider not in place, `webauthn` missing from `MFA_SUPPORTED_TYPES`, or passkey sign-in or sign-up switched on.
+`manage.py check` fails at start-up, before anyone signs in, when the settings above are inconsistent (ids `entra_staff.E001` to `E023`): a bad or incomplete `ENTRA_STAFF`, an `AUTH_USER_MODEL` that is not an Account, the package's adapters or Microsoft provider not in place, `webauthn` missing from `MFA_SUPPORTED_TYPES`, passkey sign-in or sign-up switched on, `HEADLESS_ONLY` off, sign-in or Password reset by emailed code switched on, or Django's `ModelBackend` in `AUTHENTICATION_BACKENDS`.
 
 ## The sign-in API
 

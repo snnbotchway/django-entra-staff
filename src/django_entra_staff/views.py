@@ -26,6 +26,7 @@ from allauth.mfa.webauthn.internal.auth import WebAuthn, begin_registration
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
+from .adapters import removes_last_second_step
 from .stages import SECOND_STEP_TYPES, ReplacePasswordStage, SecondStepSetupStage
 
 
@@ -129,15 +130,6 @@ def _activate_recovery_codes(request, user, added):
     return recovery_codes
 
 
-def _removes_last_second_step(user, authenticators):
-    remaining = (
-        Authenticator.objects.filter(user=user)
-        .exclude(type=Authenticator.Type.RECOVERY_CODES)
-        .exclude(pk__in=[authenticator.pk for authenticator in authenticators])
-    )
-    return not remaining.exists()
-
-
 def _cannot_delete_response(request):
     error = get_mfa_adapter().validation_error("cannot_delete_authenticator")
     return ErrorResponse(request, status=HTTPStatus.CONFLICT, exception=error)
@@ -147,7 +139,7 @@ class GuardedManageWebAuthnView(ManageWebAuthnView):
     """allauth's passkey management, refusing to remove the last Second step."""
 
     def delete(self, request, *args, **kwargs):
-        if _removes_last_second_step(request.user, self.input.cleaned_data["authenticators"]):
+        if removes_last_second_step(request.user, self.input.cleaned_data["authenticators"]):
             return _cannot_delete_response(request)
         return super().delete(request, *args, **kwargs)
 
@@ -157,7 +149,7 @@ class GuardedManageTOTPView(ManageTOTPView):
 
     def delete(self, request, *args, **kwargs):
         authenticator = self._get_authenticator()
-        if authenticator and _removes_last_second_step(request.user, [authenticator]):
+        if authenticator and not get_mfa_adapter().can_delete_authenticator(authenticator):
             return _cannot_delete_response(request)
         return super().delete(request, *args, **kwargs)
 

@@ -107,3 +107,32 @@ def test_passwordless_passkey_settings_must_stay_off(setting, expected):
     types = ["recovery_codes", "totp", "webauthn"]
 
     assert expected in check_ids(**{setting: True, "MFA_SUPPORTED_TYPES": types})
+
+
+def test_allauth_pages_must_stay_off_so_every_path_goes_through_the_package():
+    assert "entra_staff.E019" in check_ids(HEADLESS_ONLY=False)
+
+
+@pytest.mark.parametrize("adapter", ["allauth.mfa.adapter.DefaultMFAAdapter", None])
+def test_mfa_adapter_must_be_the_packages(adapter):
+    assert "entra_staff.E020" in check_ids(MFA_ADAPTER=adapter)
+
+
+@pytest.mark.parametrize(
+    ("setting", "expected"),
+    [
+        ("ACCOUNT_LOGIN_BY_CODE_ENABLED", "entra_staff.E021"),
+        ("ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED", "entra_staff.E022"),
+    ],
+)
+def test_emailed_code_flows_must_stay_off(setting, expected):
+    assert expected in check_ids(**{setting: True})
+
+
+def test_djangos_password_backend_must_not_be_installed():
+    backends = [
+        "django.contrib.auth.backends.ModelBackend",
+        "allauth.account.auth_backends.AuthenticationBackend",
+    ]
+
+    assert "entra_staff.E023" in check_ids(AUTHENTICATION_BACKENDS=backends)

@@ -1,4 +1,5 @@
 import pytest
+from allauth.mfa.adapter import get_adapter as get_mfa_adapter
 from allauth.mfa.models import Authenticator
 from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
 from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
@@ -251,3 +252,20 @@ def test_removing_the_last_totp_is_refused(client, totp_account):
 
     assert response.status_code == 409
     assert Authenticator.objects.filter(user=totp_account, type=Authenticator.Type.TOTP).exists()
+
+
+def test_the_mfa_adapter_refuses_removing_the_last_second_step(client, totp_account):
+    totp = Authenticator.objects.get(user=totp_account, type=Authenticator.Type.TOTP)
+
+    assert not get_mfa_adapter().can_delete_authenticator(totp)
+
+    sign_in(client, totp_account.email, PASSWORD)
+    client.post(
+        f"{API}/auth/2fa/authenticate",
+        {"code": totp_code(totp_secret_of(totp_account))},
+        content_type="application/json",
+    )
+    reauthenticate(client, recovery_codes_of(totp_account)[0])
+    add_passkey_while_signed_in(client, "Laptop")
+
+    assert get_mfa_adapter().can_delete_authenticator(totp)

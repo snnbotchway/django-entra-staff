@@ -57,15 +57,13 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 AUTH_USER_MODEL = "testapp.Account"
-AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",
-    "allauth.account.auth_backends.AuthenticationBackend",
-]
+AUTHENTICATION_BACKENDS = ["allauth.account.auth_backends.AuthenticationBackend"]
 
 ENTRA_STAFF = INVITE_ONLY_ADDING
 
 ACCOUNT_ADAPTER = "django_entra_staff.adapters.AccountAdapter"
 SOCIALACCOUNT_ADAPTER = "django_entra_staff.adapters.SocialAccountAdapter"
+MFA_ADAPTER = "django_entra_staff.adapters.MFAAdapter"
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None

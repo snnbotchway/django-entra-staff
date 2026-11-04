@@ -43,6 +43,11 @@ class CheckId(StrEnum):
     WEBAUTHN_TYPE_NOT_ON = "entra_staff.E016"
     PASSKEY_LOGIN_ON = "entra_staff.E017"
     PASSKEY_SIGNUP_ON = "entra_staff.E018"
+    ALLAUTH_PAGES_ON = "entra_staff.E019"
+    MFA_ADAPTER_NOT_THE_PACKAGES = "entra_staff.E020"
+    LOGIN_BY_CODE_ON = "entra_staff.E021"
+    PASSWORD_RESET_BY_CODE_ON = "entra_staff.E022"
+    DJANGO_PASSWORD_BACKEND_ON = "entra_staff.E023"
 
 
 class Problem(NamedTuple):
