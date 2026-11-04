@@ -32,6 +32,7 @@ class AbstractAccount(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(_("email address"), unique=True)
     is_active = models.BooleanField(_("active"), default=True)
     is_staff = models.BooleanField(_("Django admin access"), default=False)
+    must_replace_password = models.BooleanField(_("must replace password"), default=False)
     date_joined = models.DateTimeField(_("date joined"), default=timezone.now)
 
     objects = AccountManager()

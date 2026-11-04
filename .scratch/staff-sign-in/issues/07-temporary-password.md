@@ -1,6 +1,6 @@
 # 07: Temporary password
 
-Status: open
+Status: done
 Labels: ready-for-agent
 Blocked by: 02, 03
 
