@@ -16,7 +16,7 @@ One public package that an App installs and configures in its settings. It gives
 - Password sign-in for everyone else, always followed by the Second step (an authenticator code, a passkey, or a recovery code). A person with neither an authenticator nor a passkey must set one up before the Account opens. A passkey is only ever a Second step, never a way to sign in without a password.
 - A Sign-up rule per App: Invite only (default) or Open to staff.
 - Access through the App's declared Access groups, which either add up or are exclusive. App admins manage people in the App's own screens and never see or set passwords. Django admin access is separate and is never granted by an Access group.
-- A Django admin page for developers and IT, which is the only place a Temporary password can be set.
+- A Django admin page for developers and IT, where they can invite people, set Access groups and block or unblock Accounts, and which is the only place a Temporary password can be set.
 - Service functions and signals so each App's own screens and code can manage Accounts without touching allauth directly.
 
 The package names no organisation, wording or group; each App supplies those in settings.
@@ -111,16 +111,20 @@ The package names no organisation, wording or group; each App supplies those in 
 63. As IT, I want the Django admin sign-in to follow the same rules (Microsoft sign-in, or password plus Second step), so that the admin is not a weaker way in.
 64. As IT, I want only developers and IT to hold Django admin access, granted directly on the Account, so that it is a deliberate choice.
 65. As IT, I want to remove a Microsoft link from the admin for a person whose Entra identity was replaced, so that their next Microsoft sign-in can link again by email.
+66. As IT, I want to set a person's Access groups on the Django admin Account page, with only the App's declared Access groups offered (one to pick when they are exclusive), so that I can fix access when no App admin can.
+67. As IT, I want to block and unblock Accounts from the Django admin, on the Account page or as an action on the list, so that I can stop a leaver in one App at once.
+68. As IT, I want to invite a person by email with chosen Access groups from the Django admin add page, with no password to enter, so that I can create the first App admin of a new App.
+69. As IT, I want a refused change (such as removing the last App admin) to show a message and save nothing, so that the Django admin cannot get round the package's rules.
 
 ### Integration and operations
 
-66. As an App developer, I want to install the package, add it to settings, and set a tenant and client, so that sign-in works without writing auth code.
-67. As an App developer with a single-page frontend, I want to use allauth's headless browser API paths and error shape, so that I can use allauth's documented client flows.
-68. As an App developer, I want a clear error at start-up if the settings are inconsistent (an undeclared lowest access group, a missing App admin group, Open to staff with no lowest access), so that mistakes show before users find them.
-69. As an App developer, I want signals for Microsoft link made, Account signed up through Open to staff, Access groups changed, Account blocked or unblocked, and Temporary password set, so that my App can audit and notify.
-70. As an App developer, I want service functions for every Account change the package allows, so that my screens, commands and tests use the same rules.
-71. As an App developer, I want the on-screen wording and email texts to be mine to override, so that my App speaks in my organisation's words.
-72. As a maintainer, I want the package to rely on allauth for the Microsoft protocol, token checks, password storage, TOTP, recovery codes and attempt limits, so that we do not own security-critical code in public.
+70. As an App developer, I want to install the package, add it to settings, and set a tenant and client, so that sign-in works without writing auth code.
+71. As an App developer with a single-page frontend, I want to use allauth's headless browser API paths and error shape, so that I can use allauth's documented client flows.
+72. As an App developer, I want a clear error at start-up if the settings are inconsistent (an undeclared lowest access group, a missing App admin group, Open to staff with no lowest access), so that mistakes show before users find them.
+73. As an App developer, I want signals for Microsoft link made, Account signed up through Open to staff, Access groups changed, Account blocked or unblocked, and Temporary password set, so that my App can audit and notify.
+74. As an App developer, I want service functions for every Account change the package allows, so that my screens, commands and tests use the same rules.
+75. As an App developer, I want the on-screen wording and email texts to be mine to override, so that my App speaks in my organisation's words.
+76. As a maintainer, I want the package to rely on allauth for the Microsoft protocol, token checks, password storage, TOTP, recovery codes and attempt limits, so that we do not own security-critical code in public.
 
 ## Implementation Decisions
 
@@ -141,7 +145,7 @@ The package names no organisation, wording or group; each App supplies those in 
 - **Access groups**: Django `Group` rows whose names come from settings, created or updated after migrations. The service layer enforces declared-only, exclusive mode, and keeping at least one App admin. Django admin access stays on the Account's staff and superuser flags and is never touched by Access group code.
 - **Service functions** (the public Python API): invite an Account with Access groups; set Access groups; block and unblock; set a Temporary password (Django admin only); clear a person's authenticators and passkeys; remove a Microsoft link; a check for whether an Account holds an Access group. Each raises a package error type with a stable code on refusal and sends its signal on success. App-admin functions take no password arguments and return no password data.
 - **Signals**: Microsoft link made, Account signed up through Open to staff, Access groups changed, Account blocked, Account unblocked, Temporary password set, authenticators and passkeys cleared, Microsoft link removed. Each carries the Account and, where there is one, the acting Account.
-- **Django admin**: an Account admin page and actions for set Temporary password, clear authenticators and passkeys, and remove Microsoft link, all going through the service functions. The admin sign-in page is replaced so that signing in to the admin goes through the same allauth flows (no plain password form).
+- **Django admin**: an Account admin page and actions for set Temporary password, clear authenticators and passkeys, remove Microsoft link, and block and unblock, all going through the service functions with the signed-in Account as `acting_account`. The change page edits the Account's Access groups (declared groups only; a single choice when exclusive), blocked state and the Django admin access flags; the add page invites by email with Access groups and has no password field. Other Django groups are left alone, and a refusal shows a message and saves nothing. Django admin access is set only on the Account's own flags. The admin sign-in page is replaced so that signing in to the admin goes through the same allauth flows (no plain password form).
 - **API surface**: Apps use allauth headless browser paths (`/_allauth/browser/v1/...`) and its error shape. Package-specific refusals (Invite only, use Microsoft sign-in, Password reset not available) appear as stable error codes inside that shape.
 - **Wording**: all user-facing text goes through Django translation and overridable allauth templates; nothing names an organisation.
 - **Release**: published to PyPI only through Trusted Publishing behind a manual approval (ADR 0001).

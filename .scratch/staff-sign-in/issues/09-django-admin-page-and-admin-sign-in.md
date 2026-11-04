@@ -13,3 +13,4 @@ Spec: [../spec.md](../spec.md)
 - [ ] After a Microsoft link is removed, the next Microsoft sign-in links again by email
 - [ ] The Django admin sign-in has no plain password form; it uses Microsoft sign-in or password plus Second step
 - [ ] Django admin access is granted only on the Account itself, never by an Access group
+- [ ] IT can set Access groups, block and unblock, and invite an Account by email with Access groups (no password field), each through a service function; a refusal shows a message and saves nothing

@@ -182,7 +182,15 @@ from .models import Account
 admin.site.register(Account, AccountAdmin)
 ```
 
-It lists email, Access groups, Microsoft link, password status, Second step status, blocked state and last sign-in, lets IT set the Django admin access flags (`is_staff`, `is_superuser`), and adds three actions: set a Temporary password, clear authenticators and passkeys, and remove a Microsoft link. It has no add form: Accounts come from `invite_account` or Open to staff. Subclass `AccountAdmin` to add columns. Override the Temporary password form with a template at `django_entra_staff/set_temporary_password.html`.
+It lists email, Access groups, Microsoft link, password status, Second step status, blocked state and last sign-in.
+
+IT can invite, set Access groups and block or unblock from here, all through the service functions with the signed-in Account as `acting_account`, so every rule, refusal and signal applies:
+
+- **Add** invites a person by email with chosen Access groups (`invite_account`). There is no password field. Creating the first App admin of a new App works this way.
+- **Change** sets the Access groups, the blocked state and the Django admin access flags (`is_staff`, `is_superuser`). Only the declared Access groups are offered, as checkboxes or, when they are exclusive, as one choice. Other Django groups are left alone.
+- **Actions** block or unblock the selected Accounts, set a Temporary password, clear authenticators and passkeys, and remove a Microsoft link.
+
+A refusal, such as removing the last App admin, shows a message and saves nothing. Subclass `AccountAdmin` to add columns. Override the Temporary password form with a template at `django_entra_staff/set_temporary_password.html`.
 
 The admin sign-in page is replaced on the default `admin.site`: it sends people to `LOGIN_URL`, so the admin opens only after Microsoft sign-in or password plus Second step. An App with its own `AdminSite` must wrap its `login` the same way:
 
