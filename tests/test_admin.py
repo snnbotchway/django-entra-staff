@@ -366,3 +366,57 @@ def test_a_refused_change_shows_a_message_and_saves_nothing(it_client):
     assert held(only_admin) == {"manager"}
     only_admin.refresh_from_db()
     assert not only_admin.is_staff
+
+
+@pytest.fixture
+def block_events():
+    received = []
+
+    def receiver(sender, signal, **kwargs):
+        received.append((kwargs["account"], kwargs["acting_account"], signal))
+
+    signals.account_blocked.connect(receiver, weak=False)
+    signals.account_unblocked.connect(receiver, weak=False)
+    yield received
+    signals.account_blocked.disconnect(receiver)
+    signals.account_unblocked.disconnect(receiver)
+
+
+def test_it_blocks_and_unblocks_on_the_change_form(it_client, it, block_events):
+    person = services.invite_account("jane.doe@example.org", ["viewer"])
+
+    post_change(it_client, person, access_groups=["viewer"], blocked="on")
+
+    person.refresh_from_db()
+    assert not person.is_active
+    assert block_events == [(person, it, signals.account_blocked)]
+
+    post_change(it_client, person, access_groups=["viewer"])
+
+    person.refresh_from_db()
+    assert person.is_active
+    assert block_events[1:] == [(person, it, signals.account_unblocked)]
+
+
+def test_it_blocks_and_unblocks_accounts_from_the_changelist(it_client, it, block_events):
+    one = services.invite_account("one@example.org", ["viewer"])
+    two = services.invite_account("two@example.org", ["viewer"])
+    services.block_account(two)
+    block_events.clear()
+    changelist = reverse("admin:testapp_account_changelist")
+    selected = [str(one.pk), str(two.pk)]
+
+    response = it_client.post(
+        changelist, {"action": "block_accounts", "_selected_action": selected}, follow=True
+    )
+
+    assert "Blocked 1 account." in response.content.decode()
+    assert not get_user_model().objects.filter(pk__in=selected, is_active=True).exists()
+    assert block_events == [(one, it, signals.account_blocked)]
+
+    response = it_client.post(
+        changelist, {"action": "unblock_accounts", "_selected_action": selected}, follow=True
+    )
+
+    assert "Unblocked 2 accounts." in response.content.decode()
+    assert get_user_model().objects.filter(pk__in=selected, is_active=True).count() == 2

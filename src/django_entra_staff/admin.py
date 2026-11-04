@@ -99,7 +99,13 @@ class AccountAdmin(admin.ModelAdmin):
     )
     ordering = ("email",)
     search_fields = ("email",)
-    actions = ("set_temporary_password", "clear_authenticators", "remove_microsoft_link")
+    actions = (
+        "block_accounts",
+        "unblock_accounts",
+        "set_temporary_password",
+        "clear_authenticators",
+        "remove_microsoft_link",
+    )
     fields = (
         "email",
         "is_staff",
@@ -194,6 +200,26 @@ class AccountAdmin(admin.ModelAdmin):
     @admin.display(description=_("Last sign-in"), ordering="last_login")
     def last_sign_in(self, account):
         return account.last_login
+
+    @admin.action(description=_("Block the selected accounts"))
+    def block_accounts(self, request, queryset):
+        count = 0
+        for account in queryset.filter(is_active=True):
+            services.block_account(account, acting_account=request.user)
+            count += 1
+        self.message_user(
+            request, self._counted(_("Blocked %(count)d %(items)s."), count), messages.SUCCESS
+        )
+
+    @admin.action(description=_("Unblock the selected accounts"))
+    def unblock_accounts(self, request, queryset):
+        count = 0
+        for account in queryset.filter(is_active=False):
+            services.unblock_account(account, acting_account=request.user)
+            count += 1
+        self.message_user(
+            request, self._counted(_("Unblocked %(count)d %(items)s."), count), messages.SUCCESS
+        )
 
     @admin.action(description=_("Set a Temporary password"))
     def set_temporary_password(self, request, queryset):
