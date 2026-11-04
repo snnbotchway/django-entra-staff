@@ -29,7 +29,7 @@ What an App does when someone with no Account completes Microsoft sign-in: refus
 _Avoid_: Auto-provisioning, registration
 
 **Second step**:
-The extra proof, after the password, that a Password sign-in needs before it opens the Account: a code from an authenticator app, or a one-time recovery code. Microsoft sign-in has no Second step in the App because Microsoft already asks for one.
+The extra proof, after the password, that a Password sign-in needs before it opens the Account: a code from an authenticator app, a passkey, or a one-time recovery code. A passkey is only ever a Second step, never a way to sign in on its own. Microsoft sign-in has no Second step in the App because Microsoft already asks for one.
 _Avoid_: 2FA, OTP (when meaning the whole step)
 
 **Temporary password**:
