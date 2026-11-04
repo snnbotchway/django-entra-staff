@@ -171,12 +171,18 @@ class GuardedManageEmailView(ManageEmailView):
     another address primary rewrites it, and allauth does that for an unverified
     address when the Account has no verified one. A linked person could then take
     a colleague's address, and so could a person with a password: the colleague's
-    first Microsoft sign-in would land in their Account. Listing, deleting a
-    non-primary address and resending a verification stay allowed.
+    first Microsoft sign-in would land in their Account. A person still waiting
+    to verify their email at sign-in cannot change it either: allauth would
+    rewrite the Account's email unverified. Listing, deleting a non-primary
+    address and resending a verification stay allowed.
     """
 
     def post(self, request, *args, **kwargs):
-        return self._refuse_if_linked() or super().post(request, *args, **kwargs)
+        return (
+            self._refuse_if_verifying_sign_in()
+            or self._refuse_if_linked()
+            or super().post(request, *args, **kwargs)
+        )
 
     def patch(self, request, *args, **kwargs):
         return (
@@ -191,9 +197,17 @@ class GuardedManageEmailView(ManageEmailView):
         error = get_account_adapter().validation_error("unverified_primary_email")
         return ErrorResponse(self.request, status=HTTPStatus.BAD_REQUEST, exception=error)
 
+    def _refuse_if_verifying_sign_in(self):
+        if self.verification_stage_process is None:
+            return None
+        return self._email_change_not_supported()
+
     def _refuse_if_linked(self):
         if not has_microsoft_link(self.user):
             return None
+        return self._email_change_not_supported()
+
+    def _email_change_not_supported(self):
         error = get_account_adapter().validation_error(SignInErrorCode.EMAIL_CHANGE_NOT_SUPPORTED)
         return ErrorResponse(self.request, status=HTTPStatus.FORBIDDEN, exception=error)
 

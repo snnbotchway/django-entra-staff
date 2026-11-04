@@ -3,9 +3,9 @@ from allauth.account.models import EmailAddress
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 from django.core import mail
-from django.test import Client
+from django.test import Client, override_settings
 
-from tests.conftest import API, PASSWORD, error_code
+from tests.conftest import API, PASSWORD, error_code, sign_in
 
 pytestmark = pytest.mark.django_db
 
@@ -88,3 +88,26 @@ def test_a_verified_address_can_become_primary(client, account):
     assert response.status_code == 200
     account.refresh_from_db()
     assert account.email == "jane@example.com"
+
+
+@override_settings(
+    ACCOUNT_EMAIL_VERIFICATION="mandatory",
+    ACCOUNT_EMAIL_VERIFICATION_BY_CODE_ENABLED=True,
+    ACCOUNT_EMAIL_VERIFICATION_SUPPORTS_CHANGE=True,
+)
+def test_a_person_waiting_to_verify_their_email_cannot_change_it_to_a_colleagues(
+    microsoft, client, account
+):
+    pending = sign_in(client, account.email, PASSWORD)
+    assert [flow["id"] for flow in pending.json()["data"]["flows"] if flow.get("is_pending")] == [
+        "verify_email"
+    ]
+
+    response = post_email(client, COLLEAGUE)
+
+    assert response.status_code == 403
+    account.refresh_from_db()
+    assert account.email == "jane.doe@example.org"
+    colleague = microsoft.sign_in(Client(), email=COLLEAGUE)
+    assert error_code(colleague) == "invite_only"
+    assert not SocialAccount.objects.exists()

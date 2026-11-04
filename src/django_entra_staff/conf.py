@@ -71,6 +71,7 @@ class CheckId(StrEnum):
     PREVENT_ENUMERATION_OFF = "entra_staff.E026"
     GUARDED_ENDPOINT_NOT_THE_PACKAGES = "entra_staff.E027"
     MICROSOFT_PROVIDER_ID_CHANGED = "entra_staff.E028"
+    EMAIL_CHANGE_WHILE_VERIFYING_ON = "entra_staff.E029"
 
 
 class Problem(NamedTuple):

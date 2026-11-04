@@ -209,3 +209,7 @@ def test_naming_the_providers_own_id_is_fine():
     providers = {"microsoft": {"APP": {**MICROSOFT_APP, "provider_id": "microsoft"}}}
 
     assert "entra_staff.E028" not in check_ids(SOCIALACCOUNT_PROVIDERS=providers)
+
+
+def test_changing_the_email_while_verifying_it_at_sign_in_must_stay_off():
+    assert "entra_staff.E029" in check_ids(ACCOUNT_EMAIL_VERIFICATION_SUPPORTS_CHANGE=True)

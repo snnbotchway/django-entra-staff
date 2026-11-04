@@ -277,6 +277,15 @@ def _allauth_setting_errors():
                 id=CheckId.PREVENT_ENUMERATION_OFF.value,
             )
         )
+    if account_settings.EMAIL_VERIFICATION_MAX_CHANGE_COUNT:
+        errors.append(
+            Error(
+                "ACCOUNT_EMAIL_VERIFICATION_SUPPORTS_CHANGE must stay off: a person waiting"
+                " to verify their email at sign-in could change it, unverified, to a"
+                " colleague's, whose first Microsoft sign-in would then land in their Account.",
+                id=CheckId.EMAIL_CHANGE_WHILE_VERIFYING_ON.value,
+            )
+        )
     for urlname in _unguarded_endpoints():
         errors.append(
             Error(
