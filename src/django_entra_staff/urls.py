@@ -4,6 +4,7 @@ from allauth.mfa import app_settings as mfa_settings
 from allauth.mfa.models import Authenticator
 from django.urls import include, path
 
+from .stages import ReplacePasswordStage, SecondStepSetupStage
 from .views import (
     GuardedManageEmailView,
     GuardedManageTOTPView,
@@ -14,10 +15,13 @@ from .views import (
 )
 
 
-def _client_patterns(client, setup_urlname, replace_urlname):
+def _client_patterns(client):
     """The package's own endpoints for one headless client. They shadow the
     allauth endpoints they must police, so they come before allauth's include."""
     prefix = "browser/v1" if client == Client.BROWSER else "app/v1"
+    suffix = "" if client == Client.BROWSER else "_app"
+    setup_urlname = f"{SecondStepSetupStage.urlname}{suffix}"
+    replace_urlname = f"{ReplacePasswordStage.urlname}{suffix}"
     patterns = [
         path(
             f"{prefix}/auth/2fa/setup",
@@ -57,9 +61,7 @@ def _client_patterns(client, setup_urlname, replace_urlname):
 
 urlpatterns = []
 if Client.BROWSER in headless_settings.CLIENTS:
-    urlpatterns.extend(_client_patterns(Client.BROWSER, "second_step_setup", "replace_password"))
+    urlpatterns.extend(_client_patterns(Client.BROWSER))
 if Client.APP in headless_settings.CLIENTS:
-    urlpatterns.extend(
-        _client_patterns(Client.APP, "second_step_setup_app", "replace_password_app")
-    )
+    urlpatterns.extend(_client_patterns(Client.APP))
 urlpatterns.append(path("", include("allauth.headless.urls")))
