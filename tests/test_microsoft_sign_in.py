@@ -5,7 +5,9 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import override_settings
 
+from django_entra_staff import services
 from django_entra_staff.conf import get_settings
+from django_entra_staff.errors import ErrorCode, StaffError
 from django_entra_staff.signals import microsoft_link_made
 from tests.conftest import API, PASSWORD, error_code, is_signed_in
 
@@ -284,3 +286,27 @@ def test_allauths_email_match_with_auto_connect_makes_one_link(
     lowercase_account.refresh_from_db()
     assert not lowercase_account.has_usable_password()
     assert len(link_made_events) == 1
+
+
+def test_a_link_made_under_another_provider_id_still_counts_as_the_microsoft_link(
+    microsoft, client, account
+):
+    providers = {
+        "microsoft": {
+            "APP": {**settings.SOCIALACCOUNT_PROVIDERS["microsoft"]["APP"], "provider_id": "entra"}
+        }
+    }
+    with override_settings(SOCIALACCOUNT_PROVIDERS=providers):
+        microsoft.sign_in(client, email=account.email, provider="entra")
+        client.logout()
+        assert SocialAccount.objects.get(user=account).provider == "entra"
+
+        with pytest.raises(StaffError) as refused:
+            services.set_temporary_password(account, "temporary-pass-1")
+        other_person = microsoft.sign_in(client, email=account.email, uid="uid-2", provider="entra")
+
+    assert refused.value.code == ErrorCode.MICROSOFT_LINKED
+    account.refresh_from_db()
+    assert not account.has_usable_password()
+    assert error_code(other_person) == "account_already_linked"
+    assert SocialAccount.objects.filter(user=account).count() == 1

@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
-from .conf import MICROSOFT_PROVIDER_ID, SignUpRule, get_settings
+from .conf import SignUpRule, get_settings
 from .errors import SignInErrorCode as Code
 from .services import has_microsoft_link, set_access_groups
 from .signals import account_signed_up_open_to_staff, microsoft_link_made
@@ -45,6 +45,12 @@ class AccountAdapter(DefaultAccountAdapter):
         if user is not None and user.pk is not None and has_microsoft_link(user):
             raise self.validation_error(Code.USE_MICROSOFT_SIGNIN)
         return super().clean_password(password, user=user)
+
+    def set_password(self, user, password):
+        """Choosing a new password through a Password reset or a password change
+        replaces a Temporary password, so the person is not asked again."""
+        user.must_replace_password = False
+        super().set_password(user, password)
 
     def send_password_reset_mail(self, user, email, context):
         if user.has_usable_password() and not has_microsoft_link(user):
@@ -99,10 +105,8 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
     def validate_disconnect(self, account, accounts):
         """Only IT removes a Microsoft link, through `services.remove_microsoft_link`:
         a person who removed their own could keep a password-only Account after
-        leaving (ADR 0002)."""
-        if account.provider == MICROSOFT_PROVIDER_ID:
-            raise self.validation_error(Code.DISCONNECT_NOT_SUPPORTED)
-        super().validate_disconnect(account, accounts)
+        leaving (ADR 0002). Every social account is the Microsoft link."""
+        raise self.validation_error(Code.DISCONNECT_NOT_SUPPORTED)
 
     def pre_social_login(self, request, sociallogin):
         if sociallogin.state.get("process") == AuthProcess.CONNECT:
@@ -163,6 +167,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             account_signed_up_open_to_staff.send(
                 sender=type(account), account=account, acting_account=None
             )
+            microsoft_link_made.send(sender=type(account), account=account, acting_account=None)
 
     def is_open_for_signup(self, request, sociallogin):
         """The Sign-up rule: Invite only refuses here; Open to staff makes the

@@ -12,7 +12,14 @@ from django.urls import NoReverseMatch, resolve, reverse
 from django.utils.module_loading import import_string
 
 from .adapters import AccountAdapter, MFAAdapter, SocialAccountAdapter, dotted_path
-from .conf import MICROSOFT_NEEDS_TENANT_ID_MESSAGE, SETTING_NAME, CheckId, get_settings, validate
+from .conf import (
+    MICROSOFT_NEEDS_TENANT_ID_MESSAGE,
+    MICROSOFT_PROVIDER_ID,
+    SETTING_NAME,
+    CheckId,
+    get_settings,
+    validate,
+)
 from .models import AbstractAccount
 from .providers.microsoft.views import oauth2_callback
 from .views import GuardedManageEmailView, GuardedManageTOTPView, GuardedManageWebAuthnView
@@ -20,7 +27,7 @@ from .views import GuardedManageEmailView, GuardedManageTOTPView, GuardedManageW
 PACKAGE_ADAPTER = dotted_path(AccountAdapter)
 PACKAGE_SOCIAL_ADAPTER = dotted_path(SocialAccountAdapter)
 PACKAGE_MFA_ADAPTER = dotted_path(MFAAdapter)
-DJANGO_PASSWORD_BACKEND = "django.contrib.auth.backends.ModelBackend"
+ALLAUTH_BACKEND = "allauth.account.auth_backends.AuthenticationBackend"
 PACKAGE_MICROSOFT_APP = "django_entra_staff.providers.microsoft"
 ALLAUTH_MICROSOFT_APP = "allauth.socialaccount.providers.microsoft"
 
@@ -37,6 +44,13 @@ GUARDED_ENDPOINTS = (
 def _subclass_of(setting, base):
     path = getattr(settings, setting, None)
     return path and issubclass(import_string(path), import_string(base))
+
+
+def _is_allauths_backend(path) -> bool:
+    try:
+        return issubclass(import_string(path), import_string(ALLAUTH_BACKEND))
+    except ImportError:
+        return False
 
 
 def _microsoft_is_set_up() -> bool:
@@ -64,6 +78,16 @@ def _email_authentication_is_on() -> bool:
         provider.get("EMAIL_AUTHENTICATION")
         or provider.get("APP", {}).get("settings", {}).get("email_authentication")
         for provider in providers.values()
+    )
+
+
+def _microsoft_app_has_another_provider_id() -> bool:
+    """Whether an app set up in `SOCIALACCOUNT_PROVIDERS` for Microsoft names its
+    own `provider_id`. A Microsoft app saved in the database cannot be seen here."""
+    config = getattr(settings, "SOCIALACCOUNT_PROVIDERS", {}).get(MICROSOFT_PROVIDER_ID, {})
+    apps = config.get("APPS") or [config.get("APP", {})]
+    return any(
+        app.get("provider_id", MICROSOFT_PROVIDER_ID) != MICROSOFT_PROVIDER_ID for app in apps
     )
 
 
@@ -118,6 +142,15 @@ def check_settings(app_configs, **kwargs):
             )
         )
 
+    if _microsoft_app_has_another_provider_id():
+        errors.append(
+            Error(
+                f"The Microsoft app in SOCIALACCOUNT_PROVIDERS must keep the provider id"
+                f" {MICROSOFT_PROVIDER_ID!r}: leave out its 'provider_id'.",
+                id=CheckId.MICROSOFT_PROVIDER_ID_CHANGED.value,
+            )
+        )
+
     if _microsoft_is_set_up() and not problems:
         if not get_settings().tenant_id:
             errors.append(
@@ -164,6 +197,7 @@ def check_settings(app_configs, **kwargs):
             )
         )
     errors.extend(_allauth_path_errors())
+    errors.extend(_allauth_setting_errors())
     return errors
 
 
@@ -202,16 +236,17 @@ def _allauth_path_errors():
                 id=CheckId.PASSWORD_RESET_BY_CODE_ON.value,
             )
         )
-    if DJANGO_PASSWORD_BACKEND in getattr(settings, "AUTHENTICATION_BACKENDS", []):
-        errors.append(
-            Error(
-                f"AUTHENTICATION_BACKENDS must not include {DJANGO_PASSWORD_BACKEND}: it"
-                " checks a password with no Microsoft link check. Use"
-                " allauth.account.auth_backends.AuthenticationBackend alone.",
-                id=CheckId.DJANGO_PASSWORD_BACKEND_ON.value,
+    for backend in settings.AUTHENTICATION_BACKENDS:
+        if not _is_allauths_backend(backend):
+            errors.append(
+                Error(
+                    f"AUTHENTICATION_BACKENDS must hold only {ALLAUTH_BACKEND} or a subclass of"
+                    f" it, not {backend}: any other backend can check a password with no"
+                    " Microsoft link check.",
+                    id=CheckId.AUTHENTICATION_BACKEND_NOT_ALLAUTHS.value,
+                )
             )
-        )
-    return errors + _allauth_setting_errors()
+    return errors
 
 
 def _allauth_setting_errors():

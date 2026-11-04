@@ -129,13 +129,26 @@ def test_emailed_code_flows_must_stay_off(setting, expected):
     assert expected in check_ids(**{setting: True})
 
 
-def test_djangos_password_backend_must_not_be_installed():
-    backends = [
-        "django.contrib.auth.backends.ModelBackend",
-        "allauth.account.auth_backends.AuthenticationBackend",
-    ]
+ALLAUTH_BACKEND = "allauth.account.auth_backends.AuthenticationBackend"
 
+
+@pytest.mark.parametrize(
+    "backends",
+    [
+        ["django.contrib.auth.backends.ModelBackend", ALLAUTH_BACKEND],
+        ["django.contrib.auth.backends.RemoteUserBackend"],
+        [ALLAUTH_BACKEND, "tests.testapp.backends.Missing"],
+    ],
+    ids=["model-backend", "model-backend-subclass", "unknown-backend"],
+)
+def test_only_allauths_authentication_backend_may_be_installed(backends):
     assert "entra_staff.E023" in check_ids(AUTHENTICATION_BACKENDS=backends)
+
+
+def test_a_subclass_of_allauths_authentication_backend_is_fine():
+    backends = ["tests.testapp.backends.StaffBackend"]
+
+    assert "entra_staff.E023" not in check_ids(AUTHENTICATION_BACKENDS=backends)
 
 
 MICROSOFT_APP = {"client_id": "test-client-id", "secret": "test-secret"}
@@ -178,3 +191,21 @@ def test_either_way_of_preventing_enumeration_passes(prevent):
 
 def test_the_packages_guarded_endpoints_must_win_over_allauths():
     assert "entra_staff.E027" in check_ids(ROOT_URLCONF="tests.testapp.urls_allauth_headless")
+
+
+@pytest.mark.parametrize(
+    "providers",
+    [
+        {"microsoft": {"APP": {**MICROSOFT_APP, "provider_id": "entra"}}},
+        {"microsoft": {"APPS": [MICROSOFT_APP, {**MICROSOFT_APP, "provider_id": "entra"}]}},
+    ],
+    ids=["app", "apps"],
+)
+def test_the_microsoft_app_must_keep_the_providers_own_id(providers):
+    assert "entra_staff.E028" in check_ids(SOCIALACCOUNT_PROVIDERS=providers)
+
+
+def test_naming_the_providers_own_id_is_fine():
+    providers = {"microsoft": {"APP": {**MICROSOFT_APP, "provider_id": "microsoft"}}}
+
+    assert "entra_staff.E028" not in check_ids(SOCIALACCOUNT_PROVIDERS=providers)

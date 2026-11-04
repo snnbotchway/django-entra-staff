@@ -10,7 +10,8 @@ from django.core.exceptions import ImproperlyConfigured
 SETTING_NAME = "ENTRA_STAFF"
 
 # The id of the Microsoft provider app the package ships (the App installs it
-# instead of allauth's); the Microsoft link is a SocialAccount row with it.
+# instead of allauth's). The Microsoft app keeps it as its `provider_id`; the
+# Microsoft link is a SocialAccount row, whichever provider id it carries.
 MICROSOFT_PROVIDER_ID = "microsoft"
 
 
@@ -33,6 +34,12 @@ class SettingKey(StrEnum):
     GROUP_MODE = "GROUP_MODE"
     LOWEST_ACCESS_GROUP = "LOWEST_ACCESS_GROUP"
     APP_ADMIN_GROUP = "APP_ADMIN_GROUP"
+
+
+DEFAULTS = {
+    SettingKey.SIGN_UP_RULE: SignUpRule.INVITE_ONLY,
+    SettingKey.GROUP_MODE: GroupMode.ADDING,
+}
 
 
 class CheckId(StrEnum):
@@ -58,11 +65,12 @@ class CheckId(StrEnum):
     MFA_ADAPTER_NOT_THE_PACKAGES = "entra_staff.E020"
     LOGIN_BY_CODE_ON = "entra_staff.E021"
     PASSWORD_RESET_BY_CODE_ON = "entra_staff.E022"
-    DJANGO_PASSWORD_BACKEND_ON = "entra_staff.E023"
+    AUTHENTICATION_BACKEND_NOT_ALLAUTHS = "entra_staff.E023"
     EMAIL_AUTHENTICATION_ON = "entra_staff.E024"
     MFA_TRUST_ON = "entra_staff.E025"
     PREVENT_ENUMERATION_OFF = "entra_staff.E026"
     GUARDED_ENDPOINT_NOT_THE_PACKAGES = "entra_staff.E027"
+    MICROSOFT_PROVIDER_ID_CHANGED = "entra_staff.E028"
 
 
 class Problem(NamedTuple):
@@ -112,7 +120,7 @@ def validate(raw: object) -> list[Problem]:
             )
         )
 
-    sign_up_rule = raw.get(SettingKey.SIGN_UP_RULE, SignUpRule.INVITE_ONLY)
+    sign_up_rule = raw.get(SettingKey.SIGN_UP_RULE, DEFAULTS[SettingKey.SIGN_UP_RULE])
     if not _is_member(SignUpRule, sign_up_rule):
         problems.append(
             Problem(
@@ -121,7 +129,7 @@ def validate(raw: object) -> list[Problem]:
             )
         )
 
-    if not _is_member(GroupMode, raw.get(SettingKey.GROUP_MODE, GroupMode.ADDING)):
+    if not _is_member(GroupMode, raw.get(SettingKey.GROUP_MODE, DEFAULTS[SettingKey.GROUP_MODE])):
         problems.append(
             Problem(
                 CheckId.BAD_GROUP_MODE,
@@ -185,9 +193,11 @@ def get_settings() -> StaffSettings:
         raise ImproperlyConfigured("; ".join(problem.message for problem in problems))
     return StaffSettings(
         tenant_id=raw.get(SettingKey.TENANT_ID),
-        sign_up_rule=SignUpRule(raw.get(SettingKey.SIGN_UP_RULE, SignUpRule.INVITE_ONLY)),
+        sign_up_rule=SignUpRule(
+            raw.get(SettingKey.SIGN_UP_RULE, DEFAULTS[SettingKey.SIGN_UP_RULE])
+        ),
         access_groups=tuple(raw[SettingKey.ACCESS_GROUPS]),
-        group_mode=GroupMode(raw.get(SettingKey.GROUP_MODE, GroupMode.ADDING)),
+        group_mode=GroupMode(raw.get(SettingKey.GROUP_MODE, DEFAULTS[SettingKey.GROUP_MODE])),
         lowest_access_group=raw.get(SettingKey.LOWEST_ACCESS_GROUP),
         app_admin_group=raw[SettingKey.APP_ADMIN_GROUP],
     )

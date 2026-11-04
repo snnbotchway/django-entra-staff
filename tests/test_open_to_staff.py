@@ -37,7 +37,7 @@ def group_names(account):
 
 @pytest.mark.parametrize("variant", OPEN_VARIANTS)
 def test_first_sign_in_makes_an_account_with_the_lowest_access_group(
-    microsoft, client, signup_events, variant
+    microsoft, client, signup_events, link_made_events, variant
 ):
     with override_settings(ENTRA_STAFF=variant):
         response = microsoft.sign_in(client, email="new.person@example.org")
@@ -53,6 +53,9 @@ def test_first_sign_in_makes_an_account_with_the_lowest_access_group(
     assert [(name, kw["account"], kw["acting_account"]) for name, kw in signup_events] == [
         ("access_groups_changed", account, None),
         ("account_signed_up_open_to_staff", account, None),
+    ]
+    assert [(event["account"], event["acting_account"]) for event in link_made_events] == [
+        (account, None)
     ]
     group_change = signup_events[0][1]
     assert (group_change["previous_groups"], group_change["groups"]) == (

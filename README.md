@@ -125,7 +125,7 @@ MFA_SUPPORTED_TYPES = ["recovery_codes", "totp", "webauthn"]
 HEADLESS_ONLY = True
 ```
 
-The adapters may be subclassed. Leave `MFA_PASSKEY_LOGIN_ENABLED`, `MFA_PASSKEY_SIGNUP_ENABLED`, `ACCOUNT_LOGIN_BY_CODE_ENABLED` and `ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED` off (their default): each is a way in or a way to add a password that skips the package's rules. Leave allauth's email authentication (`SOCIALACCOUNT_EMAIL_AUTHENTICATION`, `SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT`, a provider's `EMAIL_AUTHENTICATION`) and `MFA_TRUST_ENABLED` off, and `ACCOUNT_PREVENT_ENUMERATION` on. Mount `django_entra_staff.urls` rather than allauth's headless URLs alone, so the package's guarded `account/email` and authenticator views answer. `HEADLESS_ONLY` must be `True`, because allauth's own pages skip the package's endpoints. Do not add Django's `ModelBackend` to `AUTHENTICATION_BACKENDS`: it checks passwords without refusing linked Accounts.
+The adapters may be subclassed. Leave `MFA_PASSKEY_LOGIN_ENABLED`, `MFA_PASSKEY_SIGNUP_ENABLED`, `ACCOUNT_LOGIN_BY_CODE_ENABLED` and `ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED` off (their default): each is a way in or a way to add a password that skips the package's rules. Leave allauth's email authentication (`SOCIALACCOUNT_EMAIL_AUTHENTICATION`, `SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT`, a provider's `EMAIL_AUTHENTICATION`) and `MFA_TRUST_ENABLED` off, and `ACCOUNT_PREVENT_ENUMERATION` on. Mount `django_entra_staff.urls` rather than allauth's headless URLs alone, so the package's guarded `account/email` and authenticator views answer. Through that view an Account with a Microsoft link cannot add an address or change its primary one (`email_change_not_supported`), and no Account can make an unverified address primary (`unverified_primary_email`): the Account's email is what a first Microsoft sign-in matches, so an unverified colleague's address would otherwise send that colleague's sign-in into the wrong Account. `HEADLESS_ONLY` must be `True`, because allauth's own pages skip the package's endpoints. Allow no other backend in `AUTHENTICATION_BACKENDS` than that one or a subclass of it: Django's `ModelBackend` and anything built on it checks passwords without refusing linked Accounts.
 
 A headless-only App has no allauth pages, so tell allauth and Django where the App's own frontend lives. All three `HEADLESS_FRONTEND_URLS` entries are needed, and `LOGIN_URL` is where the Django admin sends people to sign in:
 
@@ -154,6 +154,7 @@ Also needed:
    ```
 
 3. The tenant comes only from `ENTRA_STAFF["TENANT_ID"]`. Do not set the provider's own `TENANT` setting; it is ignored.
+4. Leave out the app's `provider_id`, in settings and in a `SocialApp` row. The system check sees only the settings, not rows in the database, so check those yourself. Microsoft is the only provider the package supports, so every social account an Account has counts as its Microsoft link; a custom `provider_id` would only confuse the sign-in URLs.
 
 The package checks the token's signature, issuer (which contains the tenant), audience and expiry before it links or signs anyone in. A token from any other tenant is refused. Guests of your tenant (B2B guests from another tenant, or personal Microsoft accounts you invited) are refused too: their token's `idp` claim names their home identity provider instead of your tenant's issuer. Give such people a member account in your tenant, or a password Account.
 
@@ -204,7 +205,7 @@ Being an App admin never grants Django admin access. Only IT and developers hold
 
 ### System checks
 
-`manage.py check` fails at start-up, before anyone signs in, when the settings above are inconsistent (ids `entra_staff.E001` to `E027`): a bad or incomplete `ENTRA_STAFF`, an `AUTH_USER_MODEL` that is not an Account, the package's adapters or Microsoft provider not in place, `webauthn` missing from `MFA_SUPPORTED_TYPES`, passkey sign-in or sign-up switched on, `HEADLESS_ONLY` off, sign-in or Password reset by emailed code switched on, Django's `ModelBackend` in `AUTHENTICATION_BACKENDS`, allauth's email authentication or MFA trust switched on, `ACCOUNT_PREVENT_ENUMERATION` off, or allauth's own `account/email` or authenticator management views answering instead of the package's.
+`manage.py check` fails at start-up, before anyone signs in, when the settings above are inconsistent (ids `entra_staff.E001` to `E028`): a bad or incomplete `ENTRA_STAFF`, an `AUTH_USER_MODEL` that is not an Account, the package's adapters or Microsoft provider not in place, `webauthn` missing from `MFA_SUPPORTED_TYPES`, passkey sign-in or sign-up switched on, `HEADLESS_ONLY` off, sign-in or Password reset by emailed code switched on, a backend other than allauth's (or a subclass of it) in `AUTHENTICATION_BACKENDS`, allauth's email authentication or MFA trust switched on, `ACCOUNT_PREVENT_ENUMERATION` off, allauth's own `account/email` or authenticator management views answering instead of the package's, or a `provider_id` on the Microsoft app in `SOCIALACCOUNT_PROVIDERS`.
 
 ## The sign-in API
 
@@ -252,7 +253,7 @@ In `django_entra_staff.signals`. Each is sent with the Account class as `sender`
 
 | Signal | Sent when |
 |---|---|
-| `microsoft_link_made` | A first Microsoft sign-in linked an Account. |
+| `microsoft_link_made` | A first Microsoft sign-in linked an Account, including one Open to staff has just made. |
 | `account_signed_up_open_to_staff` | Open to staff made an Account. |
 | `access_groups_changed` | Access groups changed. Also has `previous_groups` and `groups` (frozensets). |
 | `account_blocked`, `account_unblocked` | An Account was blocked or unblocked. |

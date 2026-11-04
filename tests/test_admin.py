@@ -84,7 +84,7 @@ def test_the_changelist_shows_what_it_needs_to_support_people(it_client):
     temporary = services.invite_account("temporary@example.org", ["viewer"])
     services.set_temporary_password(temporary, TEMP_PASSWORD)
     linked = services.invite_account("linked@example.org", ["viewer"])
-    link_microsoft(linked, uid="uid-1")
+    link_microsoft(linked, uid="uid-1", provider="entra")
     blocked = services.invite_account("blocked@example.org", ["viewer"])
     services.block_account(blocked)
     guarding = get_user_model().objects.create_user("guarding@example.org", PASSWORD)

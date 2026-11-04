@@ -14,7 +14,7 @@ from django.template.response import TemplateResponse
 from django.utils.translation import gettext_lazy as _
 
 from . import services
-from .conf import MICROSOFT_PROVIDER_ID, GroupMode, get_settings
+from .conf import GroupMode, get_settings
 from .errors import ErrorCode, StaffError
 from .stages import SECOND_STEP_TYPES
 
@@ -221,10 +221,7 @@ class AccountAdmin(admin.ModelAdmin):
     def microsoft_link(self, account):
         # `services.has_microsoft_link` would cost a query per row; this reads
         # the prefetched links instead.
-        linked = any(
-            social_account.provider == MICROSOFT_PROVIDER_ID
-            for social_account in account.socialaccount_set.all()
-        )
+        linked = bool(account.socialaccount_set.all())
         return _("Linked") if linked else _("Not linked")
 
     @admin.display(description=_("Password status"))

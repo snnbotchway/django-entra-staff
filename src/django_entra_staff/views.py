@@ -58,7 +58,9 @@ class SecondStepSetupView(_SecondStepSetupBaseView):
         return APIResponse(request, meta={"secret": secret, "totp_url": totp_url})
 
     def post(self, request, *args, **kwargs):
-        recovery_codes = activate_second_step(request, self.stage.login.user, self.input.secret)
+        recovery_codes = _activate_totp_second_step(
+            request, self.stage.login.user, self.input.secret
+        )
         self.stage.exit()
         return SecondStepSetupResponse(request, recovery_codes)
 
@@ -75,7 +77,7 @@ class SecondStepWebAuthnSetupView(_SecondStepSetupBaseView):
             validate_can_add_authenticator(self.stage.login.user)
         except ValidationError as error:
             return ErrorResponse(request, status=HTTPStatus.CONFLICT, exception=error)
-        recovery_codes = activate_passkey_second_step(
+        recovery_codes = _activate_passkey_second_step(
             request,
             self.stage.login.user,
             name=self.input.cleaned_data["name"],
@@ -85,7 +87,7 @@ class SecondStepWebAuthnSetupView(_SecondStepSetupBaseView):
         return SecondStepSetupResponse(request, recovery_codes)
 
 
-def activate_second_step(request, user, secret):
+def _activate_totp_second_step(request, user, secret):
     def add():
         totp_auth = TOTP.activate(user, secret).instance
         clear_totp_secret(request)
@@ -94,7 +96,7 @@ def activate_second_step(request, user, secret):
     return _activate_first_second_step(request, user, add, "mfa/email/totp_activated")
 
 
-def activate_passkey_second_step(request, user, name, credential):
+def _activate_passkey_second_step(request, user, name, credential):
     def add():
         return WebAuthn.add(user, name, credential).instance
 
@@ -162,19 +164,32 @@ class GuardedManageTOTPView(ManageTOTPView):
 
 class GuardedManageEmailView(ManageEmailView):
     """allauth's email management, refusing to add an address or make one primary
-    for an Account with a Microsoft link.
+    for an Account with a Microsoft link, and making an unverified address
+    primary for any Account.
 
-    The Account's email is what the first Microsoft sign-in matched. Making
+    The Account's email is what a first Microsoft sign-in matches. Making
     another address primary rewrites it, and allauth does that for an unverified
-    address, so a linked person could take a colleague's address. Listing,
-    deleting a non-primary address and resending a verification stay allowed.
+    address when the Account has no verified one. A linked person could then take
+    a colleague's address, and so could a person with a password: the colleague's
+    first Microsoft sign-in would land in their Account. Listing, deleting a
+    non-primary address and resending a verification stay allowed.
     """
 
     def post(self, request, *args, **kwargs):
         return self._refuse_if_linked() or super().post(request, *args, **kwargs)
 
     def patch(self, request, *args, **kwargs):
-        return self._refuse_if_linked() or super().patch(request, *args, **kwargs)
+        return (
+            self._refuse_if_linked()
+            or self._refuse_if_unverified(self.input.cleaned_data["email"])
+            or super().patch(request, *args, **kwargs)
+        )
+
+    def _refuse_if_unverified(self, address):
+        if address.verified:
+            return None
+        error = get_account_adapter().validation_error("unverified_primary_email")
+        return ErrorResponse(self.request, status=HTTPStatus.BAD_REQUEST, exception=error)
 
     def _refuse_if_linked(self):
         if not has_microsoft_link(self.user):

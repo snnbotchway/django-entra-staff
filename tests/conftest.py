@@ -44,9 +44,9 @@ def is_signed_in(client):
     return client.get(f"{API}/auth/session").status_code == 200
 
 
-def link_microsoft(account, uid="uid-1"):
+def link_microsoft(account, uid="uid-1", provider="microsoft"):
     """Give the Account the Microsoft link row, whatever way it was made."""
-    return SocialAccount.objects.create(user=account, provider="microsoft", uid=uid)
+    return SocialAccount.objects.create(user=account, provider=provider, uid=uid)
 
 
 @pytest.fixture
@@ -147,8 +147,19 @@ class FakeMicrosoft:
         self.idp = None
         self.profile = {}
 
-    def sign_in(self, client, *, email, uid="uid-1", tid=None, idp=None, process="login"):
-        """`idp` sets the id_token's identity provider claim, as Entra does for a guest."""
+    def sign_in(
+        self,
+        client,
+        *,
+        email,
+        uid="uid-1",
+        tid=None,
+        idp=None,
+        process="login",
+        provider="microsoft",
+    ):
+        """`idp` sets the id_token's identity provider claim, as Entra does for a guest.
+        `provider` is the id the App's Microsoft app is registered under."""
         self.tid = tid or get_settings().tenant_id
         self.uid = uid
         self.idp = idp
@@ -162,7 +173,7 @@ class FakeMicrosoft:
         }
         started = client.post(
             f"{API}/auth/provider/redirect",
-            {"provider": "microsoft", "callback_url": NEXT_URL, "process": process},
+            {"provider": provider, "callback_url": NEXT_URL, "process": process},
         )
         assert started.status_code == 302, started.status_code
         state = parse_qs(urlparse(started["Location"]).query)["state"][0]

@@ -17,7 +17,7 @@ from django.contrib.auth.models import Group
 from django.db import transaction
 
 from . import signals
-from .conf import MICROSOFT_PROVIDER_ID, SETTING_NAME, GroupMode, get_settings
+from .conf import SETTING_NAME, GroupMode, get_settings
 from .errors import ErrorCode, StaffError
 
 GroupNames = str | Iterable[str]
@@ -108,7 +108,9 @@ def set_access_groups(account, access_groups: GroupNames, *, acting_account=None
 
 
 def _microsoft_links(account):
-    return SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account)
+    # Microsoft is the only provider an App uses, so every social account is the
+    # Microsoft link, whatever `provider_id` the App's Microsoft app is stored under.
+    return SocialAccount.objects.filter(user=account)
 
 
 def has_microsoft_link(account) -> bool:
