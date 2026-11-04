@@ -23,14 +23,20 @@ PASSWORD = "correct horse battery"
 KID = "test-signing-key"
 
 
-@pytest.fixture(autouse=True)
-def _clear_cache():
-    """Allauth's attempt limits and id_token replay protection live in the cache."""
-    cache.clear()
+def sign_in(client, email, password):
+    return client.post(
+        f"{API}/auth/login", {"email": email, "password": password}, content_type="application/json"
+    )
 
 
 def is_signed_in(client):
     return client.get(f"{API}/auth/session").status_code == 200
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    """Allauth's attempt limits and id_token replay protection live in the cache."""
+    cache.clear()
 
 
 def error_code(response):

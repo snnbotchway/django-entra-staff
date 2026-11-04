@@ -8,7 +8,6 @@ from django.utils.translation import gettext_lazy as _
 
 from .conf import SignUpRule, get_settings
 from .signals import microsoft_link_made
-from .stages import MFA_AUTHENTICATE_STAGE, SecondStepStage
 
 
 class AccountAdapter(DefaultAccountAdapter):
@@ -17,12 +16,11 @@ class AccountAdapter(DefaultAccountAdapter):
         return False
 
     def get_login_stages(self):
-        return [
-            SecondStepStage.__module__ + "." + SecondStepStage.__qualname__
-            if stage == MFA_AUTHENTICATE_STAGE
-            else stage
-            for stage in super().get_login_stages()
-        ]
+        stages = super().get_login_stages()
+        index = stages.index("allauth.mfa.stages.AuthenticateStage")
+        stages[index] = "django_entra_staff.stages.SecondStepAuthenticateStage"
+        stages.insert(index + 1, "django_entra_staff.stages.SecondStepSetupStage")
+        return stages
 
 
 class SocialAccountAdapter(DefaultSocialAccountAdapter):

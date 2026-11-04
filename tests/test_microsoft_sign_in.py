@@ -4,7 +4,7 @@ from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 
 from django_entra_staff.signals import microsoft_link_made
-from tests.conftest import API, PASSWORD, error_code, is_signed_in
+from tests.conftest import PASSWORD, error_code, is_signed_in
 
 pytestmark = pytest.mark.django_db
 
@@ -124,12 +124,7 @@ def test_the_link_and_the_password_removal_are_one_transaction(microsoft, client
 
 
 def test_connecting_a_microsoft_account_is_refused(microsoft, client, account):
-    signed_in = client.post(
-        f"{API}/auth/login",
-        {"email": account.email, "password": PASSWORD},
-        content_type="application/json",
-    )
-    assert signed_in.status_code == 200
+    client.force_login(account)
 
     response = microsoft.sign_in(client, email="jane.doe@example.org", process="connect")
 
