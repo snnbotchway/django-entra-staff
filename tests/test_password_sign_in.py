@@ -2,8 +2,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 
-API = "/_allauth/browser/v1"
-PASSWORD = "correct horse battery"
+from tests.conftest import API, PASSWORD, is_signed_in, sign_in
 
 pytestmark = pytest.mark.django_db
 
@@ -11,24 +10,6 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def account():
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
-
-
-def sign_in(client, email, password):
-    return client.post(
-        f"{API}/auth/login", {"email": email, "password": password}, content_type="application/json"
-    )
-
-
-def is_signed_in(client):
-    return client.get(f"{API}/auth/session").status_code == 200
-
-
-def test_correct_password_opens_the_account(client, account):
-    response = sign_in(client, "Jane.Doe@example.org", PASSWORD)
-
-    assert response.status_code == 200
-    assert response.json()["data"]["user"]["email"] == "jane.doe@example.org"
-    assert is_signed_in(client)
 
 
 def test_wrong_password_gets_allauths_error(client, account):
