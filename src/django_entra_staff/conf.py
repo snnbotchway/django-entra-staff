@@ -36,6 +36,12 @@ class SettingKey(StrEnum):
     APP_ADMIN_GROUP = "APP_ADMIN_GROUP"
 
 
+DEFAULTS = {
+    SettingKey.SIGN_UP_RULE: SignUpRule.INVITE_ONLY,
+    SettingKey.GROUP_MODE: GroupMode.ADDING,
+}
+
+
 class CheckId(StrEnum):
     SETTING_NOT_A_DICT = "entra_staff.E001"
     UNKNOWN_KEY = "entra_staff.E002"
@@ -114,7 +120,7 @@ def validate(raw: object) -> list[Problem]:
             )
         )
 
-    sign_up_rule = raw.get(SettingKey.SIGN_UP_RULE, SignUpRule.INVITE_ONLY)
+    sign_up_rule = raw.get(SettingKey.SIGN_UP_RULE, DEFAULTS[SettingKey.SIGN_UP_RULE])
     if not _is_member(SignUpRule, sign_up_rule):
         problems.append(
             Problem(
@@ -123,7 +129,7 @@ def validate(raw: object) -> list[Problem]:
             )
         )
 
-    if not _is_member(GroupMode, raw.get(SettingKey.GROUP_MODE, GroupMode.ADDING)):
+    if not _is_member(GroupMode, raw.get(SettingKey.GROUP_MODE, DEFAULTS[SettingKey.GROUP_MODE])):
         problems.append(
             Problem(
                 CheckId.BAD_GROUP_MODE,
@@ -187,9 +193,11 @@ def get_settings() -> StaffSettings:
         raise ImproperlyConfigured("; ".join(problem.message for problem in problems))
     return StaffSettings(
         tenant_id=raw.get(SettingKey.TENANT_ID),
-        sign_up_rule=SignUpRule(raw.get(SettingKey.SIGN_UP_RULE, SignUpRule.INVITE_ONLY)),
+        sign_up_rule=SignUpRule(
+            raw.get(SettingKey.SIGN_UP_RULE, DEFAULTS[SettingKey.SIGN_UP_RULE])
+        ),
         access_groups=tuple(raw[SettingKey.ACCESS_GROUPS]),
-        group_mode=GroupMode(raw.get(SettingKey.GROUP_MODE, GroupMode.ADDING)),
+        group_mode=GroupMode(raw.get(SettingKey.GROUP_MODE, DEFAULTS[SettingKey.GROUP_MODE])),
         lowest_access_group=raw.get(SettingKey.LOWEST_ACCESS_GROUP),
         app_admin_group=raw[SettingKey.APP_ADMIN_GROUP],
     )
