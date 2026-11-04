@@ -420,3 +420,76 @@ def test_it_blocks_and_unblocks_accounts_from_the_changelist(it_client, it, bloc
 
     assert "Unblocked 2 accounts." in response.content.decode()
     assert get_user_model().objects.filter(pk__in=selected, is_active=True).count() == 2
+
+
+@pytest.fixture
+def invited_events():
+    received = []
+
+    def receiver(sender, **kwargs):
+        received.append((kwargs["account"], kwargs["acting_account"], kwargs["groups"]))
+
+    signals.access_groups_changed.connect(receiver, weak=False)
+    yield received
+    signals.access_groups_changed.disconnect(receiver)
+
+
+def test_it_invites_a_new_app_admin_from_the_add_page(it_client, it, invited_events):
+    add = reverse("admin:testapp_account_add")
+    form = it_client.get(add).context["adminform"].form
+
+    assert list(form.fields) == ["email", "access_groups"]
+
+    response = it_client.post(
+        add, {"email": "New.Admin@example.org", "access_groups": ["manager"]}, follow=True
+    )
+
+    assert response.status_code == 200
+    person = get_user_model().objects.get(email__iexact="new.admin@example.org")
+    assert held(person) == {"manager"}
+    assert not person.has_usable_password()
+    assert not person.is_staff and not person.is_superuser
+    assert invited_events == [(person, it, frozenset({"manager"}))]
+    assert row_of(it_client.get(reverse("admin:testapp_account_changelist")), person.email)
+
+
+def test_inviting_an_existing_email_is_a_form_error(it_client):
+    services.invite_account("jane.doe@example.org", ["viewer"])
+
+    response = it_client.post(
+        reverse("admin:testapp_account_add"),
+        {"email": "JANE.DOE@example.org", "access_groups": ["viewer"]},
+    )
+
+    assert response.status_code == 200
+    assert "An Account with this email already exists." in response.content.decode()
+    assert get_user_model().objects.filter(email__iexact="jane.doe@example.org").count() == 1
+
+
+@override_settings(ENTRA_STAFF=variants.INVITE_ONLY_EXCLUSIVE)
+def test_an_exclusive_invite_needs_exactly_one_access_group(it_client):
+    add = reverse("admin:testapp_account_add")
+
+    response = it_client.post(add, {"email": "new@example.org"})
+
+    assert response.status_code == 200
+    assert not get_user_model().objects.filter(email="new@example.org").exists()
+
+    it_client.post(add, {"email": "new@example.org", "access_groups": "editor"})
+
+    assert held(get_user_model().objects.get(email="new@example.org")) == {"editor"}
+
+
+def test_django_admin_access_is_edited_on_the_account_and_not_by_access_groups(it_client):
+    person = services.invite_account("jane.doe@example.org", ["viewer"])
+
+    post_change(it_client, person, access_groups=["manager"])
+    person.refresh_from_db()
+
+    assert not person.is_staff and not person.is_superuser
+
+    post_change(it_client, person, access_groups=["manager"], is_staff="on")
+    person.refresh_from_db()
+
+    assert person.is_staff and not person.is_superuser
+    assert held(person) == {"manager"}

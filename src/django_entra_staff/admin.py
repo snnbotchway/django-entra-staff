@@ -85,6 +85,30 @@ class AccountChangeForm(forms.ModelForm):
         self.initial["blocked"] = not self.instance.is_active
 
 
+class InviteForm(forms.ModelForm):
+    """An email and Access groups. There is never a password to set: the person signs in with
+    Microsoft sign-in, which links by this email."""
+
+    access_groups = forms.Field(required=False)  # replaced per request: the App's settings decide
+
+    class Meta:
+        fields = ("email",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        exclusive = get_settings().group_mode == GroupMode.EXCLUSIVE
+        self.fields["access_groups"] = access_groups_field(
+            required=exclusive,
+            error_messages={"required": REFUSALS[ErrorCode.EXCLUSIVE_NEEDS_ONE_GROUP]},
+        )
+
+    def clean_email(self):
+        email = self.cleaned_data["email"]
+        if type(self.instance).objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError(REFUSALS[ErrorCode.ACCOUNT_EXISTS], code="account_exists")
+        return email
+
+
 class AccountAdmin(admin.ModelAdmin):
     set_temporary_password_template = "django_entra_staff/set_temporary_password.html"
 
@@ -130,7 +154,16 @@ class AccountAdmin(admin.ModelAdmin):
     )
 
     def get_form(self, request, obj=None, **kwargs):
-        return super().get_form(request, obj, form=AccountChangeForm, **kwargs)
+        form = InviteForm if obj is None else AccountChangeForm
+        return super().get_form(request, obj, form=form, **kwargs)
+
+    def get_fieldsets(self, request, obj=None):
+        if obj is None:
+            return [(None, {"fields": ("email", "access_groups")})]
+        return super().get_fieldsets(request, obj)
+
+    def get_readonly_fields(self, request, obj=None):
+        return () if obj is None else super().get_readonly_fields(request, obj)
 
     def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         try:
@@ -140,6 +173,9 @@ class AccountAdmin(admin.ModelAdmin):
             return HttpResponseRedirect(request.get_full_path())
 
     def save_model(self, request, obj, form, change):
+        if not change:
+            self._invite(request, obj, form)
+            return
         flags = {"is_staff", "is_superuser"}.intersection(form.changed_data)
         if flags:
             obj.save(update_fields=sorted(flags))
@@ -162,6 +198,17 @@ class AccountAdmin(admin.ModelAdmin):
             .get_queryset(request)
             .prefetch_related("groups", "socialaccount_set", "authenticator_set")
         )
+
+    def _invite(self, request, obj, form):
+        try:
+            account = services.invite_account(
+                form.cleaned_data["email"], chosen_groups(form), acting_account=request.user
+            )
+        except StaffError as error:
+            raise Refused(error) from error
+        # The admin carries on with the object it was given: point it at the saved Account.
+        obj.pk, obj.email = account.pk, account.email
+        obj._state.adding, obj._state.db = False, account._state.db
 
     @admin.display(description=_("Access groups"))
     def access_groups(self, account):
