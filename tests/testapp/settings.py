@@ -58,6 +58,7 @@ AUTHENTICATION_BACKENDS = [
 ENTRA_STAFF = INVITE_ONLY_ADDING
 
 ACCOUNT_ADAPTER = "django_entra_staff.adapters.AccountAdapter"
+SOCIALACCOUNT_ADAPTER = "django_entra_staff.adapters.SocialAccountAdapter"
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None

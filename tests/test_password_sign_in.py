@@ -2,8 +2,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 
-API = "/_allauth/browser/v1"
-PASSWORD = "correct horse battery"
+from tests.conftest import API, PASSWORD, is_signed_in
 
 pytestmark = pytest.mark.django_db
 
@@ -17,10 +16,6 @@ def sign_in(client, email, password):
     return client.post(
         f"{API}/auth/login", {"email": email, "password": password}, content_type="application/json"
     )
-
-
-def is_signed_in(client):
-    return client.get(f"{API}/auth/session").status_code == 200
 
 
 def test_correct_password_opens_the_account(client, account):

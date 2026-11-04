@@ -17,6 +17,7 @@ from django_entra_staff.conf import get_settings
 API = "/_allauth/browser/v1"
 MICROSOFT_CALLBACK = "/microsoft/login/callback/"
 NEXT_URL = "/next"
+PASSWORD = "correct horse battery"
 
 KID = "test-signing-key"
 
