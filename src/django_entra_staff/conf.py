@@ -24,6 +24,17 @@ class GroupMode(StrEnum):
     EXCLUSIVE = "exclusive"
 
 
+class SettingKey(StrEnum):
+    """The keys of the `ENTRA_STAFF` dict."""
+
+    TENANT_ID = "TENANT_ID"
+    SIGN_UP_RULE = "SIGN_UP_RULE"
+    ACCESS_GROUPS = "ACCESS_GROUPS"
+    GROUP_MODE = "GROUP_MODE"
+    LOWEST_ACCESS_GROUP = "LOWEST_ACCESS_GROUP"
+    APP_ADMIN_GROUP = "APP_ADMIN_GROUP"
+
+
 class CheckId(StrEnum):
     SETTING_NOT_A_DICT = "entra_staff.E001"
     UNKNOWN_KEY = "entra_staff.E002"
@@ -65,13 +76,8 @@ class StaffSettings:
     app_admin_group: str
 
 
-KEYS = (
-    "TENANT_ID",
-    "SIGN_UP_RULE",
-    "ACCESS_GROUPS",
-    "GROUP_MODE",
-    "LOWEST_ACCESS_GROUP",
-    "APP_ADMIN_GROUP",
+MICROSOFT_NEEDS_TENANT_ID_MESSAGE = (
+    f"Microsoft sign-in needs {SETTING_NAME}['{SettingKey.TENANT_ID}']."
 )
 
 
@@ -90,27 +96,36 @@ def validate(raw: object) -> list[Problem]:
     problems = [
         Problem(CheckId.UNKNOWN_KEY, f"{SETTING_NAME} has an unknown key {key!r}.")
         for key in raw
-        if key not in KEYS
+        if key not in set(SettingKey)
     ]
 
-    tenant_id = raw.get("TENANT_ID")
+    tenant_id = raw.get(SettingKey.TENANT_ID)
     if tenant_id is not None and not (isinstance(tenant_id, str) and tenant_id):
         problems.append(
-            Problem(CheckId.BAD_TENANT_ID, "TENANT_ID must be a non-empty string or left out.")
+            Problem(
+                CheckId.BAD_TENANT_ID,
+                f"{SettingKey.TENANT_ID} must be a non-empty string or left out.",
+            )
         )
 
-    sign_up_rule = raw.get("SIGN_UP_RULE", SignUpRule.INVITE_ONLY)
+    sign_up_rule = raw.get(SettingKey.SIGN_UP_RULE, SignUpRule.INVITE_ONLY)
     if not _is_member(SignUpRule, sign_up_rule):
         problems.append(
-            Problem(CheckId.BAD_SIGN_UP_RULE, f"SIGN_UP_RULE must be one of {_values(SignUpRule)}.")
+            Problem(
+                CheckId.BAD_SIGN_UP_RULE,
+                f"{SettingKey.SIGN_UP_RULE} must be one of {_values(SignUpRule)}.",
+            )
         )
 
-    if not _is_member(GroupMode, raw.get("GROUP_MODE", GroupMode.ADDING)):
+    if not _is_member(GroupMode, raw.get(SettingKey.GROUP_MODE, GroupMode.ADDING)):
         problems.append(
-            Problem(CheckId.BAD_GROUP_MODE, f"GROUP_MODE must be one of {_values(GroupMode)}.")
+            Problem(
+                CheckId.BAD_GROUP_MODE,
+                f"{SettingKey.GROUP_MODE} must be one of {_values(GroupMode)}.",
+            )
         )
 
-    groups = raw.get("ACCESS_GROUPS")
+    groups = raw.get(SettingKey.ACCESS_GROUPS)
     groups_ok = (
         isinstance(groups, list | tuple)
         and len(groups) > 0
@@ -121,35 +136,39 @@ def validate(raw: object) -> list[Problem]:
         problems.append(
             Problem(
                 CheckId.BAD_ACCESS_GROUPS,
-                "ACCESS_GROUPS must be a non-empty list of unique, non-empty group names.",
+                f"{SettingKey.ACCESS_GROUPS} must be a non-empty list of unique,"
+                " non-empty group names.",
             )
         )
         return problems
     declared = list(groups)
 
-    app_admin_group = raw.get("APP_ADMIN_GROUP")
+    app_admin_group = raw.get(SettingKey.APP_ADMIN_GROUP)
     if app_admin_group not in declared:
         problems.append(
             Problem(
                 CheckId.APP_ADMIN_GROUP_NOT_DECLARED,
-                f"APP_ADMIN_GROUP {app_admin_group!r} must be one of ACCESS_GROUPS.",
+                f"{SettingKey.APP_ADMIN_GROUP} {app_admin_group!r} must be one of"
+                f" {SettingKey.ACCESS_GROUPS}.",
             )
         )
 
-    lowest = raw.get("LOWEST_ACCESS_GROUP")
+    lowest = raw.get(SettingKey.LOWEST_ACCESS_GROUP)
     if lowest is None:
         if sign_up_rule == SignUpRule.OPEN_TO_STAFF:
             problems.append(
                 Problem(
                     CheckId.OPEN_TO_STAFF_NEEDS_LOWEST_ACCESS_GROUP,
-                    "SIGN_UP_RULE 'open_to_staff' needs LOWEST_ACCESS_GROUP.",
+                    f"{SettingKey.SIGN_UP_RULE} {SignUpRule.OPEN_TO_STAFF.value!r} needs"
+                    f" {SettingKey.LOWEST_ACCESS_GROUP}.",
                 )
             )
     elif lowest not in declared:
         problems.append(
             Problem(
                 CheckId.LOWEST_ACCESS_GROUP_NOT_DECLARED,
-                f"LOWEST_ACCESS_GROUP {lowest!r} must be one of ACCESS_GROUPS.",
+                f"{SettingKey.LOWEST_ACCESS_GROUP} {lowest!r} must be one of"
+                f" {SettingKey.ACCESS_GROUPS}.",
             )
         )
     return problems
@@ -161,10 +180,10 @@ def get_settings() -> StaffSettings:
     if problems:
         raise ImproperlyConfigured("; ".join(problem.message for problem in problems))
     return StaffSettings(
-        tenant_id=raw.get("TENANT_ID"),
-        sign_up_rule=SignUpRule(raw.get("SIGN_UP_RULE", SignUpRule.INVITE_ONLY)),
-        access_groups=tuple(raw["ACCESS_GROUPS"]),
-        group_mode=GroupMode(raw.get("GROUP_MODE", GroupMode.ADDING)),
-        lowest_access_group=raw.get("LOWEST_ACCESS_GROUP"),
-        app_admin_group=raw["APP_ADMIN_GROUP"],
+        tenant_id=raw.get(SettingKey.TENANT_ID),
+        sign_up_rule=SignUpRule(raw.get(SettingKey.SIGN_UP_RULE, SignUpRule.INVITE_ONLY)),
+        access_groups=tuple(raw[SettingKey.ACCESS_GROUPS]),
+        group_mode=GroupMode(raw.get(SettingKey.GROUP_MODE, GroupMode.ADDING)),
+        lowest_access_group=raw.get(SettingKey.LOWEST_ACCESS_GROUP),
+        app_admin_group=raw[SettingKey.APP_ADMIN_GROUP],
     )

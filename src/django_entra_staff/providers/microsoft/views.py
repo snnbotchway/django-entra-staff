@@ -10,7 +10,7 @@ from allauth.socialaccount.providers.oauth2.views import (
 )
 from django.core.exceptions import ImproperlyConfigured
 
-from django_entra_staff.conf import get_settings
+from django_entra_staff.conf import MICROSOFT_NEEDS_TENANT_ID_MESSAGE, get_settings
 
 DEFAULT_LOGIN_URL = "https://login.microsoftonline.com"
 
@@ -33,7 +33,7 @@ class MicrosoftGraphOAuth2Adapter(AllauthMicrosoftGraphOAuth2Adapter):
     def _tenant_id(self):
         tenant_id = get_settings().tenant_id
         if not tenant_id:
-            raise ImproperlyConfigured("Microsoft sign-in needs ENTRA_STAFF['TENANT_ID'].")
+            raise ImproperlyConfigured(MICROSOFT_NEEDS_TENANT_ID_MESSAGE)
         return tenant_id
 
     def complete_login(self, request, app, token, **kwargs):

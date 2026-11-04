@@ -9,7 +9,7 @@ from django.http import Http404
 from django.urls import NoReverseMatch, resolve, reverse
 from django.utils.module_loading import import_string
 
-from .conf import SETTING_NAME, CheckId, get_settings, validate
+from .conf import MICROSOFT_NEEDS_TENANT_ID_MESSAGE, SETTING_NAME, CheckId, get_settings, validate
 from .models import AbstractAccount
 from .providers.microsoft.views import oauth2_callback
 
@@ -74,7 +74,7 @@ def check_settings(app_configs, **kwargs):
         if not get_settings().tenant_id:
             errors.append(
                 Error(
-                    "Microsoft sign-in needs ENTRA_STAFF['TENANT_ID'].",
+                    MICROSOFT_NEEDS_TENANT_ID_MESSAGE,
                     id=CheckId.MICROSOFT_NEEDS_TENANT_ID.value,
                 )
             )
