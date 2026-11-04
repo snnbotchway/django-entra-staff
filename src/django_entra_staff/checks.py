@@ -197,6 +197,7 @@ def check_settings(app_configs, **kwargs):
             )
         )
     errors.extend(_allauth_path_errors())
+    errors.extend(_allauth_setting_errors())
     return errors
 
 
@@ -245,7 +246,7 @@ def _allauth_path_errors():
                     id=CheckId.AUTHENTICATION_BACKEND_NOT_ALLAUTHS.value,
                 )
             )
-    return errors + _allauth_setting_errors()
+    return errors
 
 
 def _allauth_setting_errors():
