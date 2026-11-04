@@ -1,7 +1,9 @@
 import pytest
 from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from allauth.socialaccount.models import SocialAccount
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 
 from django_entra_staff.conf import get_settings
 from django_entra_staff.signals import microsoft_link_made
@@ -201,3 +203,84 @@ def test_a_linked_account_cannot_remove_its_microsoft_link(microsoft, client, ac
     assert response.status_code == 400
     assert response.json()["errors"][0]["code"] == "disconnect_not_supported"
     assert SocialAccount.objects.filter(user=account, provider="microsoft").exists()
+
+
+@pytest.fixture
+def lowercase_account():
+    """allauth's email match compares the lowercased address exactly, so only an
+    Account stored in lowercase is found by it."""
+    return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
+
+
+@pytest.fixture
+def email_authentication_forced_on():
+    """allauth's email authentication on, as an App could set it past the system
+    check: the Microsoft email counts as verified, so allauth matches the
+    Account by email before the package's adapter is asked."""
+    providers = {
+        "microsoft": {**settings.SOCIALACCOUNT_PROVIDERS["microsoft"], "VERIFIED_EMAIL": True}
+    }
+    with override_settings(
+        SOCIALACCOUNT_EMAIL_AUTHENTICATION=True, SOCIALACCOUNT_PROVIDERS=providers
+    ):
+        yield
+
+
+@pytest.mark.usefixtures("email_authentication_forced_on")
+def test_allauths_email_match_still_links_the_account_and_removes_the_password(
+    microsoft, client, lowercase_account, link_made_events
+):
+    response = microsoft.sign_in(client, email="jane.doe@example.org")
+
+    assert error_code(response) is None
+    assert is_signed_in(client)
+    link = SocialAccount.objects.get(provider="microsoft", uid="uid-1")
+    assert link.user == lowercase_account
+    lowercase_account.refresh_from_db()
+    assert not lowercase_account.has_usable_password()
+    assert len(link_made_events) == 1
+
+
+@pytest.mark.usefixtures("email_authentication_forced_on")
+def test_allauths_email_match_does_not_sign_in_to_an_account_linked_to_another_person(
+    microsoft, client, lowercase_account
+):
+    microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-1")
+    client.logout()
+
+    response = microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-2")
+
+    assert error_code(response) == "account_already_linked"
+    assert not is_signed_in(client)
+    assert SocialAccount.objects.get(provider="microsoft").uid == "uid-1"
+
+
+@pytest.mark.usefixtures("email_authentication_forced_on")
+def test_allauths_email_match_does_not_sign_in_to_a_blocked_account(
+    microsoft, client, lowercase_account
+):
+    lowercase_account.is_active = False
+    lowercase_account.save()
+
+    response = microsoft.sign_in(client, email="jane.doe@example.org")
+
+    assert error_code(response) == "account_blocked"
+    assert not is_signed_in(client)
+    assert not SocialAccount.objects.exists()
+    lowercase_account.refresh_from_db()
+    assert lowercase_account.has_usable_password()
+
+
+@pytest.mark.usefixtures("email_authentication_forced_on")
+@override_settings(SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT=True)
+def test_allauths_email_match_with_auto_connect_makes_one_link(
+    microsoft, client, lowercase_account, link_made_events
+):
+    response = microsoft.sign_in(client, email="jane.doe@example.org")
+
+    assert error_code(response) is None
+    assert is_signed_in(client)
+    assert SocialAccount.objects.filter(user=lowercase_account, provider="microsoft").count() == 1
+    lowercase_account.refresh_from_db()
+    assert not lowercase_account.has_usable_password()
+    assert len(link_made_events) == 1

@@ -109,12 +109,18 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             # work email; connecting one by hand would skip that rule and the
             # password removal that comes with it.
             raise self.validation_error("connect_not_supported")
-        if sociallogin.is_existing:
+        if sociallogin.is_existing and sociallogin.account.pk is not None:
             # The Microsoft link already exists: allauth signs this Account in.
             if not sociallogin.user.is_active:
                 raise self.validation_error("account_blocked")
             return
-        account = self._account_for(sociallogin)
+        if sociallogin.is_existing:
+            # An existing Account with no saved link: allauth's own email match
+            # found it (the system check refuses the settings that turn that on).
+            # It is still the first sign-in, so the package matches and links.
+            account = sociallogin.user
+        else:
+            account = self._account_for(sociallogin)
         if account is None:
             # Nobody to link: the Sign-up rule answers.
             if get_settings().sign_up_rule is SignUpRule.OPEN_TO_STAFF:
