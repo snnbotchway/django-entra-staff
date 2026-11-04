@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: The tag must name the version in pyproject.toml
+        run: test "v$(uv version --short)" = "${GITHUB_REF_NAME}"
+      - run: uv run ruff check .
+      - run: uv run pytest
+      - run: uv build --no-sources
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # The `pypi` environment has required reviewers, so the job waits for a
+    # manual approval before it can ask PyPI for a publishing token.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/django-entra-staff/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: astral-sh/setup-uv@v6
+      - run: uv publish --trusted-publishing always
