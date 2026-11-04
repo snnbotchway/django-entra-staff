@@ -29,7 +29,8 @@ PACKAGE_SOCIAL_ADAPTER = dotted_path(SocialAccountAdapter)
 PACKAGE_MFA_ADAPTER = dotted_path(MFAAdapter)
 ALLAUTH_BACKEND = "allauth.account.auth_backends.AuthenticationBackend"
 PACKAGE_MICROSOFT_APP = "django_entra_staff.providers.microsoft"
-ALLAUTH_MICROSOFT_APP = "allauth.socialaccount.providers.microsoft"
+ALLAUTH_PROVIDERS_PACKAGE = "allauth.socialaccount.providers"
+ALLAUTH_MICROSOFT_APP = f"{ALLAUTH_PROVIDERS_PACKAGE}.microsoft"
 
 # The allauth endpoints the package guards, as (url name, the package's view,
 # the MFA type that mounts it or None). The package's URLs shadow allauth's, so
@@ -55,6 +56,21 @@ def _is_allauths_backend(path) -> bool:
 
 def _microsoft_is_set_up() -> bool:
     return PACKAGE_MICROSOFT_APP in settings.INSTALLED_APPS
+
+
+def _other_provider_apps() -> list[str]:
+    """allauth's provider apps other than Microsoft, which E012 refuses on its own."""
+    return [
+        app
+        for app in settings.INSTALLED_APPS
+        if app.startswith(f"{ALLAUTH_PROVIDERS_PACKAGE}.")
+        and not _is_app(app, ALLAUTH_MICROSOFT_APP)
+    ]
+
+
+def _is_app(entry: str, app: str) -> bool:
+    """Whether an INSTALLED_APPS entry is the app's module or one of its AppConfigs."""
+    return entry == app or entry.startswith(f"{app}.")
 
 
 def _microsoft_callback_is_the_packages() -> bool:
@@ -139,6 +155,15 @@ def check_settings(app_configs, **kwargs):
                 f" not {ALLAUTH_MICROSOFT_APP}: allauth's adapter never verifies the"
                 " id_token's tenant.",
                 id=CheckId.MICROSOFT_PROVIDER_NOT_THE_PACKAGES.value,
+            )
+        )
+
+    for app in _other_provider_apps():
+        errors.append(
+            Error(
+                f"{app} must not be installed: every social account counts as the"
+                " Microsoft link, so another provider's sign-in would pass as one.",
+                id=CheckId.OTHER_PROVIDER_INSTALLED.value,
             )
         )
 

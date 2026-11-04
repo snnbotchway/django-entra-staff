@@ -213,3 +213,9 @@ def test_naming_the_providers_own_id_is_fine():
 
 def test_changing_the_email_while_verifying_it_at_sign_in_must_stay_off():
     assert "entra_staff.E029" in check_ids(ACCOUNT_EMAIL_VERIFICATION_SUPPORTS_CHANGE=True)
+
+
+def test_no_other_sign_in_provider_may_be_installed():
+    installed = [*settings.INSTALLED_APPS, "allauth.socialaccount.providers.google"]
+    with mock.patch.object(settings, "INSTALLED_APPS", installed):
+        assert "entra_staff.E030" in check_ids()
