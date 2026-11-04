@@ -1,14 +1,16 @@
 """The public Python API for changing Accounts. Screens, commands and tests all use these.
 
 Each function enforces the package's rules, raises `StaffError` with a stable `ErrorCode` when
-it refuses, and sends its signal (see `signals`) once the change is saved. None of them takes
-or returns password data, and none of them touches Django admin access.
+it refuses, and sends its signal (see `signals`) once the change is saved. Only
+`set_temporary_password` takes a password — the Temporary password IT hands out; no function
+returns password data, and none of them touches Django admin access.
 
 `acting_account` is the Account making the change; it is only carried to the signals.
 """
 
 from collections.abc import Iterable
 
+from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.db import transaction
@@ -121,6 +123,23 @@ def block_account(account, *, acting_account=None) -> None:
 def unblock_account(account, *, acting_account=None) -> None:
     """Let a blocked Account sign in again. Unblocking an active Account does nothing."""
     _set_active(account, True, signals.account_unblocked, acting_account)
+
+
+@transaction.atomic
+def set_temporary_password(account, password: str, *, acting_account=None) -> None:
+    """Give the Account a Temporary password the person must replace at their next
+    Password sign-in."""
+    if SocialAccount.objects.filter(provider="microsoft", user=account).exists():
+        raise StaffError(
+            ErrorCode.MICROSOFT_LINKED,
+            "An Account with a Microsoft link cannot get a Temporary password.",
+        )
+    account.set_password(password)
+    account.must_replace_password = True
+    account.save(update_fields=["password", "must_replace_password"])
+    signals.temporary_password_set.send(
+        sender=type(account), account=account, acting_account=acting_account
+    )
 
 
 def has_access_group(account, access_group: str) -> bool:
