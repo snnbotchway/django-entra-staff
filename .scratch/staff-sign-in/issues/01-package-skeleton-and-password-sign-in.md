@@ -1,6 +1,6 @@
 # 01: Package skeleton and Password sign-in
 
-Status: open
+Status: done
 Labels: ready-for-agent
 Blocked by: None (can start immediately)
 
