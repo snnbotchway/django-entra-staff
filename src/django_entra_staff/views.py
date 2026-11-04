@@ -10,17 +10,23 @@ from allauth.headless.base.response import (
     ConflictResponse,
 )
 from allauth.headless.base.views import AuthenticationStageAPIView
-from allauth.headless.mfa.inputs import ActivateTOTPInput
+from allauth.headless.internal.restkit.response import ErrorResponse
+from allauth.headless.mfa.inputs import ActivateTOTPInput, AddWebAuthnInput
 from allauth.mfa import signals
 from allauth.mfa.adapter import get_adapter as get_mfa_adapter
 from allauth.mfa.base.internal.flows import post_authentication
+from allauth.mfa.internal.flows.add import validate_can_add_authenticator
 from allauth.mfa.models import Authenticator
 from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
 from allauth.mfa.totp.internal.auth import TOTP, clear_totp_secret, get_totp_secret
 from allauth.mfa.utils import is_mfa_enabled
+from allauth.mfa.webauthn.internal.auth import WebAuthn, begin_registration
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from .stages import SecondStepSetupStage
+
+SECOND_STEP_TYPES = [Authenticator.Type.TOTP, Authenticator.Type.WEBAUTHN]
 
 
 class SecondStepSetupView(AuthenticationStageAPIView):
@@ -29,7 +35,7 @@ class SecondStepSetupView(AuthenticationStageAPIView):
 
     def handle(self, request, *args, **kwargs):
         self.stage = LoginStageController.enter(request, self.stage_class.key)
-        if self.stage and is_mfa_enabled(self.stage.login.user, [Authenticator.Type.TOTP]):
+        if self.stage and is_mfa_enabled(self.stage.login.user, SECOND_STEP_TYPES):
             return ConflictResponse(request)
         return super().handle(request, *args, **kwargs)
 
@@ -48,20 +54,70 @@ class SecondStepSetupView(AuthenticationStageAPIView):
         return {"user": self.stage.login.user}
 
 
+class SecondStepWebAuthnSetupView(AuthenticationStageAPIView):
+    stage_class = SecondStepSetupStage
+    input_class = {"POST": AddWebAuthnInput}
+
+    def handle(self, request, *args, **kwargs):
+        self.stage = LoginStageController.enter(request, self.stage_class.key)
+        if self.stage and is_mfa_enabled(self.stage.login.user, SECOND_STEP_TYPES):
+            return ConflictResponse(request)
+        return super().handle(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        creation_options = begin_registration(self.stage.login.user, passwordless=False)
+        return APIResponse(request, data={"creation_options": creation_options})
+
+    def post(self, request, *args, **kwargs):
+        try:
+            validate_can_add_authenticator(self.stage.login.user)
+        except ValidationError as error:
+            return ErrorResponse(request, status=HTTPStatus.CONFLICT, exception=error)
+        recovery_codes = activate_passkey_second_step(
+            request,
+            self.stage.login.user,
+            name=self.input.cleaned_data["name"],
+            credential=self.input.cleaned_data["credential"],
+        )
+        self.stage.exit()
+        return SecondStepSetupResponse(request, recovery_codes)
+
+    def get_input_kwargs(self):
+        return {"user": self.stage.login.user}
+
+
 def activate_second_step(request, user, secret):
     with transaction.atomic():
         totp_auth = TOTP.activate(user, secret).instance
+        clear_totp_secret(request)
+        recovery_codes = _activate_recovery_codes(request, user, [totp_auth])
+    get_account_adapter(request).send_notification_mail("mfa/email/totp_activated", user)
+    post_authentication(request, totp_auth)
+    return recovery_codes.get_unused_codes()
+
+
+def activate_passkey_second_step(request, user, name, credential):
+    with transaction.atomic():
+        webauthn_auth = WebAuthn.add(user, name, credential).instance
+        recovery_codes = _activate_recovery_codes(request, user, [webauthn_auth])
+    get_account_adapter(request).send_notification_mail("mfa/email/webauthn_added", user)
+    post_authentication(request, webauthn_auth)
+    return recovery_codes.get_unused_codes()
+
+
+def _activate_recovery_codes(request, user, added):
+    """Recovery codes come with the first Second step, whichever kind it is."""
+    with transaction.atomic():
         had_recovery_codes = Authenticator.objects.filter(
             user=user, type=Authenticator.Type.RECOVERY_CODES
         ).exists()
         recovery_codes = RecoveryCodes.activate(user)
-        clear_totp_secret(request)
 
         def on_commit():
-            added = [totp_auth]
+            announced = [*added]
             if not had_recovery_codes:
-                added.append(recovery_codes.instance)
-            for authenticator in added:
+                announced.append(recovery_codes.instance)
+            for authenticator in announced:
                 signals.authenticator_added.send(
                     sender=Authenticator,
                     request=request,
@@ -70,9 +126,7 @@ def activate_second_step(request, user, secret):
                 )
 
         transaction.on_commit(on_commit)
-    get_account_adapter(request).send_notification_mail("mfa/email/totp_activated", user)
-    post_authentication(request, totp_auth)
-    return recovery_codes.get_unused_codes()
+    return recovery_codes
 
 
 class SecondStepSetupResponse(BaseAuthenticationResponse):
