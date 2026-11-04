@@ -1,6 +1,5 @@
 import pytest
 from allauth.mfa.models import Authenticator
-from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
 from allauth.mfa.signals import authenticator_added
 from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from django.contrib.auth import get_user_model

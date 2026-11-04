@@ -73,9 +73,7 @@ def test_the_reset_request_answers_the_same_way_whatever_the_email(client):
     assert all(response.json() == {"status": 200} for response in responses)
 
 
-def test_after_a_reset_the_next_sign_in_still_needs_the_second_step(
-    client, second_step_account
-):
+def test_after_a_reset_the_next_sign_in_still_needs_the_second_step(client, second_step_account):
     request_reset(client, second_step_account.email)
     response = client.post(
         f"{API}/auth/password/reset",
