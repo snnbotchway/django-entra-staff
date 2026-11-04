@@ -6,11 +6,9 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
-from .conf import SignUpRule, get_settings
+from .conf import MICROSOFT_PROVIDER_ID, SignUpRule, get_settings
 from .services import set_access_groups
 from .signals import account_signed_up_open_to_staff, microsoft_link_made
-
-MICROSOFT_PROVIDER_ID = "microsoft"
 
 
 def _has_microsoft_link(account):

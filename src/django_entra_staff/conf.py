@@ -9,6 +9,10 @@ from django.core.exceptions import ImproperlyConfigured
 
 SETTING_NAME = "ENTRA_STAFF"
 
+# The id of the Microsoft provider app the package ships (the App installs it
+# instead of allauth's); the Microsoft link is a SocialAccount row with it.
+MICROSOFT_PROVIDER_ID = "microsoft"
+
 
 class SignUpRule(StrEnum):
     INVITE_ONLY = "invite_only"

@@ -4,9 +4,12 @@ import re
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from allauth.mfa.models import Authenticator
 from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
 from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
+from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
+from django.test import Client
 from django.urls import reverse
 
 from django_entra_staff import services
@@ -34,6 +37,11 @@ def it():
 def it_client(client, it):
     client.force_login(it)
     return client
+
+
+@pytest.fixture
+def account():
+    return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
 
 
 def row_of(response, email):
@@ -143,3 +151,115 @@ def test_an_access_group_never_grants_django_admin_access(client):
     assert response.status_code == 302
     response = client.get(response["Location"])
     assert response.status_code == 403
+
+
+def test_the_admin_sets_a_temporary_password_through_the_service(
+    it_client, it, temporary_password_events
+):
+    person = services.invite_account("jane.doe@example.org", ["viewer"])
+    changelist = reverse("admin:testapp_account_changelist")
+
+    response = it_client.post(
+        changelist, {"action": "set_temporary_password", "_selected_action": str(person.pk)}
+    )
+
+    assert response.status_code == 200
+    assert b'name="password"' in response.content
+    assert not person.has_usable_password()
+
+    response = it_client.post(
+        changelist,
+        {
+            "action": "set_temporary_password",
+            "post": "yes",
+            "_selected_action": str(person.pk),
+            "password": TEMP_PASSWORD,
+        },
+        follow=True,
+    )
+
+    assert response.status_code == 200
+    assert "Temporary password set for 1 account." in response.content.decode()
+    person.refresh_from_db()
+    assert person.check_password(TEMP_PASSWORD)
+    assert person.must_replace_password
+    assert [(event["account"], event["acting_account"]) for event in temporary_password_events] == [
+        (person, it)
+    ]
+
+
+def test_setting_a_temporary_password_refuses_a_linked_account(it_client):
+    person = services.invite_account("jane.doe@example.org", ["viewer"])
+    linked = services.invite_account("linked@example.org", ["viewer"])
+    link_microsoft(linked, uid="uid-2")
+    changelist = reverse("admin:testapp_account_changelist")
+
+    response = it_client.post(
+        changelist,
+        {
+            "action": "set_temporary_password",
+            "post": "yes",
+            "_selected_action": [str(person.pk), str(linked.pk)],
+            "password": TEMP_PASSWORD,
+        },
+        follow=True,
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Temporary password set for 1 account." in content
+    assert "Not set for 1 account with a Microsoft link" in content
+    person.refresh_from_db()
+    assert person.check_password(TEMP_PASSWORD)
+    linked.refresh_from_db()
+    assert not linked.has_usable_password()
+
+
+def test_the_admin_clears_authenticators_so_the_next_sign_in_sets_up_again(
+    it_client, second_step_account
+):
+    changelist = reverse("admin:testapp_account_changelist")
+
+    response = it_client.post(
+        changelist,
+        {"action": "clear_authenticators", "_selected_action": str(second_step_account.pk)},
+        follow=True,
+    )
+
+    assert response.status_code == 200
+    assert "Cleared authenticators and passkeys for 1 account." in response.content.decode()
+    assert not Authenticator.objects.filter(user=second_step_account).exists()
+
+    response = sign_in(Client(), second_step_account.email, PASSWORD)
+
+    assert response.status_code == 401
+    assert {"id": "second_step_setup", "is_pending": True} in response.json()["data"]["flows"]
+
+
+def test_the_admin_removes_the_microsoft_link_and_the_next_sign_in_links_again(
+    it_client, microsoft, link_made_events
+):
+    person = services.invite_account("jane.doe@example.org", ["viewer"])
+    browser = Client()
+    microsoft.sign_in(browser, email=person.email)
+    assert SocialAccount.objects.filter(user=person, provider="microsoft").exists()
+    changelist = reverse("admin:testapp_account_changelist")
+
+    response = it_client.post(
+        changelist,
+        {"action": "remove_microsoft_link", "_selected_action": str(person.pk)},
+        follow=True,
+    )
+
+    assert response.status_code == 200
+    assert "Removed the Microsoft link from 1 account." in response.content.decode()
+    assert not SocialAccount.objects.filter(user=person).exists()
+    person.refresh_from_db()
+    assert not person.has_usable_password()
+
+    response = microsoft.sign_in(browser, email=person.email)
+
+    assert response.status_code == 302
+    assert is_signed_in(browser)
+    assert SocialAccount.objects.filter(user=person, provider="microsoft").exists()
+    assert len(link_made_events) == 2

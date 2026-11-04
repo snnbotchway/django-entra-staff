@@ -24,7 +24,7 @@ from django.conf import settings
 from django.core.cache import cache
 
 from django_entra_staff.conf import get_settings
-from django_entra_staff.signals import microsoft_link_made
+from django_entra_staff.signals import microsoft_link_made, temporary_password_set
 
 API = "/_allauth/browser/v1"
 MICROSOFT_CALLBACK = "/microsoft/login/callback/"
@@ -204,3 +204,16 @@ def link_made_events():
     microsoft_link_made.connect(receiver, weak=False)
     yield events
     microsoft_link_made.disconnect(receiver)
+
+
+@pytest.fixture
+def temporary_password_events():
+    """The payloads of every temporary_password_set sent during the test."""
+    received = []
+
+    def receiver(sender, **kwargs):
+        received.append(kwargs)
+
+    temporary_password_set.connect(receiver, weak=False)
+    yield received
+    temporary_password_set.disconnect(receiver)

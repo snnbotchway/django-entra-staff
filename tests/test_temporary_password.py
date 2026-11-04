@@ -5,7 +5,7 @@ from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
 from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from django.contrib.auth import get_user_model
 
-from django_entra_staff import services, signals
+from django_entra_staff import services
 from django_entra_staff.errors import ErrorCode, StaffError
 from tests.conftest import (
     API,
@@ -34,19 +34,6 @@ def second_step(temp_password_account):
     TOTP.activate(temp_password_account, generate_totp_secret())
     RecoveryCodes.activate(temp_password_account)
     return temp_password_account
-
-
-@pytest.fixture
-def temporary_password_events():
-    """The payloads of every temporary_password_set sent during the test."""
-    received = []
-
-    def receiver(sender, **kwargs):
-        received.append(kwargs)
-
-    signals.temporary_password_set.connect(receiver, weak=False)
-    yield received
-    signals.temporary_password_set.disconnect(receiver)
 
 
 def test_set_temporary_password_sets_the_password_and_the_flag_together(

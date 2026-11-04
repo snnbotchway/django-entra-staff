@@ -10,13 +10,14 @@ returns password data, and none of them touches Django admin access.
 
 from collections.abc import Iterable
 
+from allauth.mfa.models import Authenticator
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.db import transaction
 
 from . import signals
-from .conf import GroupMode, get_settings
+from .conf import MICROSOFT_PROVIDER_ID, GroupMode, get_settings
 from .errors import ErrorCode, StaffError
 
 GroupNames = str | Iterable[str]
@@ -129,7 +130,7 @@ def unblock_account(account, *, acting_account=None) -> None:
 def set_temporary_password(account, password: str, *, acting_account=None) -> None:
     """Give the Account a Temporary password the person must replace at their next
     Password sign-in."""
-    if SocialAccount.objects.filter(provider="microsoft", user=account).exists():
+    if SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).exists():
         raise StaffError(
             ErrorCode.MICROSOFT_LINKED,
             "An Account with a Microsoft link cannot get a Temporary password.",
@@ -140,6 +141,26 @@ def set_temporary_password(account, password: str, *, acting_account=None) -> No
     signals.temporary_password_set.send(
         sender=type(account), account=account, acting_account=acting_account
     )
+
+
+@transaction.atomic
+def clear_authenticators(account, *, acting_account=None) -> None:
+    """Remove the Account's authenticator, passkeys and recovery codes, so the
+    person sets up a new Second step at their next Password sign-in."""
+    Authenticator.objects.filter(user=account).delete()
+
+
+@transaction.atomic
+def remove_microsoft_link(account, *, acting_account=None) -> bool:
+    """Remove the Account's Microsoft link, so the next Microsoft sign-in links
+    again by email.
+
+    The Account keeps no password: the person signs in through Microsoft sign-in,
+    or IT gives them a Temporary password, which is allowed once the link is gone.
+    Returns whether a link was removed.
+    """
+    removed = SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).delete()[0]
+    return removed > 0
 
 
 def has_access_group(account, access_group: str) -> bool:
