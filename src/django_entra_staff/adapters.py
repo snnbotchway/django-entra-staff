@@ -20,6 +20,7 @@ class AccountAdapter(DefaultAccountAdapter):
         index = stages.index("allauth.mfa.stages.AuthenticateStage")
         stages[index] = "django_entra_staff.stages.SecondStepAuthenticateStage"
         stages.insert(index + 1, "django_entra_staff.stages.SecondStepSetupStage")
+        stages.insert(index + 2, "django_entra_staff.stages.ReplacePasswordStage")
         return stages
 
 

@@ -10,6 +10,7 @@ from allauth.headless.base.response import (
     ConflictResponse,
 )
 from allauth.headless.base.views import AuthenticationStageAPIView
+from allauth.headless.internal.restkit.inputs import CharField, Input
 from allauth.headless.mfa.inputs import ActivateTOTPInput
 from allauth.mfa import signals
 from allauth.mfa.adapter import get_adapter as get_mfa_adapter
@@ -20,7 +21,7 @@ from allauth.mfa.totp.internal.auth import TOTP, clear_totp_secret, get_totp_sec
 from allauth.mfa.utils import is_mfa_enabled
 from django.db import transaction
 
-from .stages import SecondStepSetupStage
+from .stages import ReplacePasswordStage, SecondStepSetupStage
 
 
 class SecondStepSetupView(AuthenticationStageAPIView):
@@ -95,3 +96,31 @@ class SecondStepSetupResponse(BaseAuthenticationResponse):
             meta={"is_authenticated": user.is_authenticated},
             status=status,
         )
+
+
+class ReplacePasswordInput(Input):
+    new_password = CharField()
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user")
+        super().__init__(*args, **kwargs)
+
+    def clean_new_password(self):
+        return get_account_adapter().clean_password(
+            self.cleaned_data["new_password"], user=self.user
+        )
+
+
+class ReplacePasswordView(AuthenticationStageAPIView):
+    stage_class = ReplacePasswordStage
+    input_class = {"POST": ReplacePasswordInput}
+
+    def post(self, request, *args, **kwargs):
+        user = self.stage.login.user
+        user.set_password(self.input.cleaned_data["new_password"])
+        user.must_replace_password = False
+        user.save(update_fields=["password", "must_replace_password"])
+        return self.respond_next_stage()
+
+    def get_input_kwargs(self):
+        return {"user": self.stage.login.user}
