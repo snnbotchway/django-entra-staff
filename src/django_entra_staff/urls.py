@@ -51,6 +51,7 @@ def _client_patterns(client, setup_urlname, replace_urlname):
         )
     return patterns
 
+
 urlpatterns = []
 if Client.BROWSER in headless_settings.CLIENTS:
     urlpatterns.extend(_client_patterns(Client.BROWSER, "second_step_setup", "replace_password"))
