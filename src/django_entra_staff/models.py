@@ -42,6 +42,8 @@ class AbstractAccount(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         abstract = True
+        verbose_name = _("Account")
+        verbose_name_plural = _("Accounts")
         constraints = [
             models.UniqueConstraint(Lower("email"), name="%(app_label)s_%(class)s_email_ci_unique"),
         ]
