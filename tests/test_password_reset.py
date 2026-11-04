@@ -4,6 +4,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.core import mail
 
+from django_entra_staff import services
 from tests.conftest import (
     API,
     PASSWORD,
@@ -124,3 +125,27 @@ def test_a_reset_key_issued_before_linking_dies_when_the_account_is_linked(
     assert response.json()["errors"][0]["code"] == "invalid_password_reset"
     account.refresh_from_db()
     assert not account.has_usable_password()
+
+
+def test_resetting_a_temporary_password_does_not_ask_for_a_replacement_again(
+    client, second_step_account
+):
+    services.set_temporary_password(second_step_account, "temporary-pass-1")
+    request_reset(client, second_step_account.email)
+    client.post(
+        f"{API}/auth/password/reset",
+        {"key": reset_key_from_mail(), "password": NEW_PASSWORD},
+        content_type="application/json",
+    )
+
+    sign_in(client, second_step_account.email, NEW_PASSWORD)
+    response = client.post(
+        f"{API}/auth/2fa/authenticate",
+        {"code": totp_code(totp_secret_of(second_step_account))},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200
+    assert is_signed_in(client)
+    second_step_account.refresh_from_db()
+    assert not second_step_account.must_replace_password

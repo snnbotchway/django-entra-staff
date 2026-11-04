@@ -46,6 +46,12 @@ class AccountAdapter(DefaultAccountAdapter):
             raise self.validation_error(Code.USE_MICROSOFT_SIGNIN)
         return super().clean_password(password, user=user)
 
+    def set_password(self, user, password):
+        """Choosing a new password through a Password reset or a password change
+        replaces a Temporary password, so the person is not asked again."""
+        user.must_replace_password = False
+        super().set_password(user, password)
+
     def send_password_reset_mail(self, user, email, context):
         if user.has_usable_password() and not has_microsoft_link(user):
             super().send_password_reset_mail(user, email, context)
