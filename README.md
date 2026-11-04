@@ -230,6 +230,7 @@ Use these from the App's own screens, commands and tests, never the models and a
 | `clear_authenticators(account, *, acting_account=None)` | Removes all authenticators, passkeys and recovery codes. |
 | `remove_microsoft_link(account, *, acting_account=None)` | Lets the next Microsoft sign-in link again. The Account keeps no password. |
 | `has_access_group(account, access_group)` | Whether the Account holds the group; `False` when not signed in. |
+| `has_microsoft_link(account)` | Whether the Account has a Microsoft link, so it can never have a password. |
 
 Error codes: `undeclared_access_group`, `exclusive_needs_one_group`, `last_app_admin`, `account_exists`, `microsoft_linked`.
 
@@ -246,6 +247,8 @@ In `django_entra_staff.signals`. Each is sent with the Account class as `sender`
 | `access_groups_changed` | Access groups changed. Also has `previous_groups` and `groups` (frozensets). |
 | `account_blocked`, `account_unblocked` | An Account was blocked or unblocked. |
 | `temporary_password_set` | IT set a Temporary password. |
+| `authenticators_cleared` | IT cleared an Account's authenticators, passkeys and recovery codes. |
+| `microsoft_link_removed` | IT removed an Account's Microsoft link. Not sent when there was none. |
 
 They are sent inside the transaction that makes the change, so a receiver that raises undoes it. Do slow or outward-facing work, such as email, in `transaction.on_commit`.
 

@@ -153,6 +153,9 @@ def clear_authenticators(account, *, acting_account=None) -> None:
     """Remove the Account's authenticator, passkeys and recovery codes, so the
     person sets up a new Second step at their next Password sign-in."""
     Authenticator.objects.filter(user=account).delete()
+    signals.authenticators_cleared.send(
+        sender=type(account), account=account, acting_account=acting_account
+    )
 
 
 @transaction.atomic
@@ -162,10 +165,15 @@ def remove_microsoft_link(account, *, acting_account=None) -> bool:
 
     The Account keeps no password: the person signs in through Microsoft sign-in,
     or IT gives them a Temporary password, which is allowed once the link is gone.
-    Returns whether a link was removed.
+    Returns whether a link was removed; the signal is sent only then.
     """
     removed = SocialAccount.objects.filter(provider=MICROSOFT_PROVIDER_ID, user=account).delete()[0]
-    return removed > 0
+    if not removed:
+        return False
+    signals.microsoft_link_removed.send(
+        sender=type(account), account=account, acting_account=acting_account
+    )
+    return True
 
 
 def has_access_group(account, access_group: str) -> bool:

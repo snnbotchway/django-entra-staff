@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
-from django_entra_staff import services
+from django_entra_staff import services, signals
 from tests.conftest import (
     API,
     PASSWORD,
@@ -42,6 +42,27 @@ def it_client(client, it):
 @pytest.fixture
 def account():
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
+
+
+@pytest.fixture
+def sent():
+    """(signal name, account, acting account) for each clear or link removal sent."""
+    received = []
+    watched = {
+        "authenticators_cleared": signals.authenticators_cleared,
+        "microsoft_link_removed": signals.microsoft_link_removed,
+    }
+    receivers = {}
+    for name, signal in watched.items():
+
+        def receiver(sender, name=name, **kwargs):
+            received.append((name, kwargs["account"], kwargs["acting_account"]))
+
+        receivers[name] = receiver
+        signal.connect(receiver, weak=False)
+    yield received
+    for name, signal in watched.items():
+        signal.disconnect(receivers[name])
 
 
 def row_of(response, email):
@@ -216,7 +237,7 @@ def test_setting_a_temporary_password_refuses_a_linked_account(it_client):
 
 
 def test_the_admin_clears_authenticators_so_the_next_sign_in_sets_up_again(
-    it_client, second_step_account
+    it_client, it, second_step_account, sent
 ):
     changelist = reverse("admin:testapp_account_changelist")
 
@@ -229,6 +250,7 @@ def test_the_admin_clears_authenticators_so_the_next_sign_in_sets_up_again(
     assert response.status_code == 200
     assert "Cleared authenticators and passkeys for 1 account." in response.content.decode()
     assert not Authenticator.objects.filter(user=second_step_account).exists()
+    assert sent == [("authenticators_cleared", second_step_account, it)]
 
     response = sign_in(Client(), second_step_account.email, PASSWORD)
 
@@ -237,7 +259,7 @@ def test_the_admin_clears_authenticators_so_the_next_sign_in_sets_up_again(
 
 
 def test_the_admin_removes_the_microsoft_link_and_the_next_sign_in_links_again(
-    it_client, microsoft, link_made_events
+    it_client, it, microsoft, link_made_events, sent
 ):
     person = services.invite_account("jane.doe@example.org", ["viewer"])
     browser = Client()
@@ -254,6 +276,7 @@ def test_the_admin_removes_the_microsoft_link_and_the_next_sign_in_links_again(
     assert response.status_code == 200
     assert "Removed the Microsoft link from 1 account." in response.content.decode()
     assert not SocialAccount.objects.filter(user=person).exists()
+    assert sent == [("microsoft_link_removed", person, it)]
     person.refresh_from_db()
     assert not person.has_usable_password()
 
