@@ -1,6 +1,6 @@
 # 06: Open to staff Sign-up rule
 
-Status: open
+Status: done
 Labels: ready-for-agent
 Blocked by: 03, 05
 
