@@ -9,6 +9,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.contrib.admin.utils import model_ngettext
+from django.contrib.auth.password_validation import validate_password
 from django.http import HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.utils.translation import gettext_lazy as _
@@ -21,6 +22,11 @@ from .stages import SECOND_STEP_TYPES
 
 class TemporaryPasswordForm(forms.Form):
     password = forms.CharField(label=_("Temporary password"), widget=forms.PasswordInput)
+
+    def clean_password(self):
+        password = self.cleaned_data["password"]
+        validate_password(password)
+        return password
 
 
 REFUSALS = {

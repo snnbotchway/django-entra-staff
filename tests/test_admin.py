@@ -239,6 +239,25 @@ def test_setting_a_temporary_password_refuses_a_linked_account(it_client):
     assert not linked.has_usable_password()
 
 
+def test_a_temporary_password_must_meet_the_apps_password_rules(it_client):
+    person = services.invite_account("jane.doe@example.org", ["viewer"])
+
+    response = it_client.post(
+        reverse("admin:testapp_account_changelist"),
+        {
+            "action": "set_temporary_password",
+            "post": "yes",
+            "_selected_action": str(person.pk),
+            "password": "short",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "at least 12 characters" in response.content.decode()
+    person.refresh_from_db()
+    assert not person.has_usable_password()
+
+
 def test_the_admin_clears_authenticators_so_the_next_sign_in_sets_up_again(
     it_client, it, second_step_account, sent
 ):
