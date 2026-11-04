@@ -214,6 +214,8 @@ The App's frontend calls allauth's headless browser API under `/_allauth/browser
 | `POST auth/password/replace` | Replace a Temporary password (`new_password`). |
 | `GET auth/session` | Whether the person is signed in, and which flows are pending. |
 | `account/authenticators/...` | Manage authenticators and passkeys once signed in. Removing the last Second step is refused with `cannot_delete_authenticator`. |
+| `POST account/password/change` | Set or change the password once signed in. Refused with `use_microsoft_signin` for an Account with a Microsoft link, as is completing a Password reset for one. |
+| `DELETE account/providers` | Refused with `disconnect_not_supported` for the Microsoft link. Only IT removes it, through `remove_microsoft_link`. |
 
 After a correct password the response is `401` with `data.flows` listing what is pending, in this fixed order: `mfa_authenticate` or `second_step_setup`, then `replace_password`. The sign-in is complete only when none is pending. Other endpoints refuse a half-finished sign-in. Microsoft sign-in has none of these steps.
 
