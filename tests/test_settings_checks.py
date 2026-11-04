@@ -66,3 +66,22 @@ def test_user_model_must_be_an_account():
 @pytest.mark.parametrize("adapter", ["allauth.account.adapter.DefaultAccountAdapter", None])
 def test_account_adapter_must_be_the_packages(adapter):
     assert "entra_staff.E011" in check_ids(ACCOUNT_ADAPTER=adapter)
+
+
+def test_webauthn_type_must_be_on_so_a_passkey_can_be_the_second_step():
+    types = ["recovery_codes", "totp"]
+
+    assert "entra_staff.E012" in check_ids(MFA_SUPPORTED_TYPES=types)
+
+
+@pytest.mark.parametrize(
+    ("setting", "expected"),
+    [
+        ("MFA_PASSKEY_LOGIN_ENABLED", "entra_staff.E013"),
+        ("MFA_PASSKEY_SIGNUP_ENABLED", "entra_staff.E014"),
+    ],
+)
+def test_passwordless_passkey_settings_must_stay_off(setting, expected):
+    types = ["recovery_codes", "totp", "webauthn"]
+
+    assert expected in check_ids(**{setting: True, "MFA_SUPPORTED_TYPES": types})

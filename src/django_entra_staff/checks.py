@@ -1,3 +1,5 @@
+from allauth.mfa import app_settings as mfa_settings
+from allauth.mfa.models import Authenticator
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.checks import Error, register
@@ -30,6 +32,28 @@ def check_settings(app_configs, **kwargs):
             Error(
                 f"ACCOUNT_ADAPTER must be {PACKAGE_ADAPTER} or a subclass of it.",
                 id=CheckId.ACCOUNT_ADAPTER_NOT_THE_PACKAGES.value,
+            )
+        )
+
+    if Authenticator.Type.WEBAUTHN not in mfa_settings.SUPPORTED_TYPES:
+        errors.append(
+            Error(
+                "MFA_SUPPORTED_TYPES must include 'webauthn' so a passkey can be the Second step.",
+                id=CheckId.WEBAUTHN_TYPE_NOT_ON.value,
+            )
+        )
+    if mfa_settings.PASSKEY_LOGIN_ENABLED:
+        errors.append(
+            Error(
+                "MFA_PASSKEY_LOGIN_ENABLED must stay off: a passkey is only ever the Second step.",
+                id=CheckId.PASSKEY_LOGIN_ON.value,
+            )
+        )
+    if mfa_settings.PASSKEY_SIGNUP_ENABLED:
+        errors.append(
+            Error(
+                "MFA_PASSKEY_SIGNUP_ENABLED must stay off: nobody creates an Account with a passkey.",
+                id=CheckId.PASSKEY_SIGNUP_ON.value,
             )
         )
     return errors
