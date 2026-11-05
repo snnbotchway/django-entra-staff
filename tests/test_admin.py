@@ -78,6 +78,13 @@ def row_of(response, email):
     return match[0]
 
 
+def active_cell(row):
+    """The Active column's yes/no icon in a changelist row: "True" or "False"."""
+    match = re.search(r'class="field-is_active"><img [^>]*alt="(\w+)"', row)
+    assert match, "No Active column"
+    return match[1]
+
+
 def item_of(response, email):
     """The list item naming the Account with this email, as HTML."""
     match = re.search(rf"<li>[^<]*{re.escape(email)}.*?</li>", response.content.decode(), re.DOTALL)
@@ -104,7 +111,7 @@ def test_the_changelist_shows_what_it_needs_to_support_people(it_client):
     assert "Not linked" in row
     assert "No password" in row
     assert "Not set up" in row
-    assert "Active" in row
+    assert active_cell(row) == "True"
 
     row = row_of(response, temporary.email)
     assert "Temporary password" in row
@@ -114,7 +121,7 @@ def test_the_changelist_shows_what_it_needs_to_support_people(it_client):
     assert "No password" in row
 
     row = row_of(response, blocked.email)
-    assert "Blocked" in row
+    assert active_cell(row) == "False"
 
     row = row_of(response, guarding.email)
     assert "Password set" in row
@@ -351,62 +358,85 @@ def change_url(account):
     return reverse("admin:testapp_account_change", args=[account.pk])
 
 
-def post_change(client, account, **fields):
-    """Submit the change form the way a browser does: unchecked boxes are left out."""
-    return client.post(change_url(account), fields, follow=True)
+def group_pks(*names):
+    return [Group.objects.get(name=name).pk for name in names]
 
 
 def held(account):
     return set(account.groups.values_list("name", flat=True))
 
 
-def test_it_sets_access_groups_on_the_change_form_through_the_service(it_client, it):
-    person = services.invite_account("jane.doe@example.org", ["viewer"])
-    events = []
+def post_change(client, account, **fields):
+    """Submit the change form the way a browser does: unticked boxes are left out.
+
+    Active is ticked and the Access groups the Account holds are kept unless given;
+    `is_active=None` unticks Active.
+    """
+    declared = held(account) & {"viewer", "editor", "manager"}
+    fields = {"is_active": "on", "groups": group_pks(*declared), **fields}
+    fields = {name: value for name, value in fields.items() if value is not None}
+    return client.post(change_url(account), fields, follow=True)
+
+
+@pytest.fixture
+def group_events():
+    received = []
 
     def receiver(sender, **kwargs):
-        events.append((kwargs["account"], kwargs["acting_account"], kwargs["groups"]))
+        received.append((kwargs["account"], kwargs["acting_account"], kwargs["groups"]))
 
     signals.access_groups_changed.connect(receiver, weak=False)
-    try:
-        response = post_change(it_client, person, access_groups=["editor", "manager"])
-    finally:
-        signals.access_groups_changed.disconnect(receiver)
-
-    assert response.status_code == 200
-    assert held(person) == {"editor", "manager"}
-    assert events == [(person, it, frozenset({"editor", "manager"}))]
+    yield received
+    signals.access_groups_changed.disconnect(receiver)
 
 
-def test_the_change_form_offers_only_declared_access_groups(it_client):
+def test_the_change_form_has_no_password_and_its_password_page_refuses(it_client, account):
+    response = it_client.get(change_url(account))
+
+    assert "password" not in response.context["adminform"].form.fields
+    assert "password/" not in response.content.decode()
+
+    password_page = reverse("admin:testapp_account_changelist") + f"{account.pk}/password/"
+    new_password = {"password1": "another-pass-12", "password2": "another-pass-12"}
+    assert it_client.get(password_page).status_code == 403
+    assert it_client.post(password_page, new_password).status_code == 403
+    account.refresh_from_db()
+    assert account.check_password(PASSWORD)
+
+
+def test_it_sets_access_groups_in_the_picker_through_the_service(it_client, it, group_events):
     person = services.invite_account("jane.doe@example.org", ["viewer"])
     person.groups.add(Group.objects.create(name="payroll"))
+    group_events.clear()
 
     response = it_client.get(change_url(person))
 
-    offered = response.context["adminform"].form.fields["access_groups"].choices
-    assert [value for value, _label in offered] == ["viewer", "editor", "manager"]
+    offered = response.context["adminform"].form.fields["groups"].queryset
+    assert sorted(offered.values_list("name", flat=True)) == ["editor", "manager", "viewer"]
+    assert 'class="selectfilter"' in response.content.decode()
+    assert 'id="add_id_groups"' not in response.content.decode()
 
-    response = post_change(it_client, person, access_groups=["editor"])
+    response = post_change(it_client, person, groups=group_pks("editor", "manager"))
 
-    assert held(person) == {"editor", "payroll"}
     assert response.status_code == 200
+    assert held(person) == {"editor", "manager", "payroll"}
+    assert group_events == [(person, it, frozenset({"editor", "manager"}))]
 
 
 @override_settings(ENTRA_STAFF=variants.INVITE_ONLY_EXCLUSIVE)
-def test_exclusive_access_groups_are_picked_one_at_a_time(it_client):
+def test_exclusive_access_groups_take_exactly_one_or_nothing_is_saved(it_client):
     person = services.invite_account("jane.doe@example.org", ["viewer"])
 
-    response = it_client.get(change_url(person))
-
-    assert 'type="radio"' in response.content.decode()
-    post_change(it_client, person, access_groups="editor")
-    assert held(person) == {"editor"}
-
-    response = post_change(it_client, person, access_groups="")
+    response = post_change(it_client, person, groups=group_pks("viewer", "editor"), is_staff="on")
 
     assert response.status_code == 200
     assert "Choose exactly one Access group." in response.content.decode()
+    assert held(person) == {"viewer"}
+    person.refresh_from_db()
+    assert not person.is_staff
+
+    post_change(it_client, person, groups=group_pks("editor"))
+
     assert held(person) == {"editor"}
 
 
@@ -424,20 +454,35 @@ def block_events():
     signals.account_unblocked.disconnect(receiver)
 
 
-def test_it_blocks_and_unblocks_on_the_change_form(it_client, it, block_events):
+def test_unticking_active_blocks_and_ticking_it_unblocks(it_client, it, block_events):
     person = services.invite_account("jane.doe@example.org", ["viewer"])
 
-    post_change(it_client, person, access_groups=["viewer"], blocked="on")
+    post_change(it_client, person, is_active=None)
 
     person.refresh_from_db()
     assert not person.is_active
     assert block_events == [(person, it, signals.account_blocked)]
 
-    post_change(it_client, person, access_groups=["viewer"])
+    post_change(it_client, person)
 
     person.refresh_from_db()
     assert person.is_active
     assert block_events[1:] == [(person, it, signals.account_unblocked)]
+
+
+def test_django_admin_access_is_edited_on_the_account_and_not_by_access_groups(it_client):
+    person = services.invite_account("jane.doe@example.org", ["viewer"])
+
+    post_change(it_client, person, groups=group_pks("manager"))
+    person.refresh_from_db()
+
+    assert not person.is_staff and not person.is_superuser
+
+    post_change(it_client, person, is_staff="on")
+    person.refresh_from_db()
+
+    assert person.is_staff and not person.is_superuser
+    assert held(person) == {"manager"}
 
 
 def test_it_blocks_and_unblocks_accounts_from_the_changelist(it_client, it, block_events):
@@ -464,35 +509,24 @@ def test_it_blocks_and_unblocks_accounts_from_the_changelist(it_client, it, bloc
     assert get_user_model().objects.filter(pk__in=selected, is_active=True).count() == 2
 
 
-@pytest.fixture
-def invited_events():
-    received = []
-
-    def receiver(sender, **kwargs):
-        received.append((kwargs["account"], kwargs["acting_account"], kwargs["groups"]))
-
-    signals.access_groups_changed.connect(receiver, weak=False)
-    yield received
-    signals.access_groups_changed.disconnect(receiver)
-
-
-def test_it_invites_a_new_app_admin_from_the_add_page(it_client, it, invited_events):
+def test_it_invites_a_new_app_admin_from_the_add_page_with_no_password(it_client, it, group_events):
     add = reverse("admin:testapp_account_add")
-    form = it_client.get(add).context["adminform"].form
+    response = it_client.get(add)
 
-    assert list(form.fields) == ["email", "access_groups"]
+    assert list(response.context["adminform"].form.fields) == ["email", "groups"]
+    assert 'type="password"' not in response.content.decode()
 
     response = it_client.post(
-        add, {"email": "New.Admin@example.org", "access_groups": ["manager"]}, follow=True
+        add, {"email": "New.Admin@example.org", "groups": group_pks("manager")}, follow=True
     )
 
     assert response.status_code == 200
     person = get_user_model().objects.get(email__iexact="new.admin@example.org")
+    assert response.redirect_chain[-1][0] == change_url(person)
     assert held(person) == {"manager"}
     assert not person.has_usable_password()
     assert not person.is_staff and not person.is_superuser
-    assert invited_events == [(person, it, frozenset({"manager"}))]
-    assert row_of(it_client.get(reverse("admin:testapp_account_changelist")), person.email)
+    assert group_events == [(person, it, frozenset({"manager"}))]
 
 
 def test_inviting_an_existing_email_is_a_form_error(it_client):
@@ -500,7 +534,7 @@ def test_inviting_an_existing_email_is_a_form_error(it_client):
 
     response = it_client.post(
         reverse("admin:testapp_account_add"),
-        {"email": "JANE.DOE@example.org", "access_groups": ["viewer"]},
+        {"email": "JANE.DOE@example.org", "groups": group_pks("viewer")},
     )
 
     assert response.status_code == 200
@@ -514,27 +548,12 @@ def test_an_exclusive_invite_needs_exactly_one_access_group(it_client):
 
     response = it_client.post(add, {"email": "new@example.org"})
 
-    assert response.status_code == 200
+    assert "Choose exactly one Access group." in response.content.decode()
     assert not get_user_model().objects.filter(email="new@example.org").exists()
 
-    it_client.post(add, {"email": "new@example.org", "access_groups": "editor"})
+    it_client.post(add, {"email": "new@example.org", "groups": group_pks("editor")})
 
     assert held(get_user_model().objects.get(email="new@example.org")) == {"editor"}
-
-
-def test_django_admin_access_is_edited_on_the_account_and_not_by_access_groups(it_client):
-    person = services.invite_account("jane.doe@example.org", ["viewer"])
-
-    post_change(it_client, person, access_groups=["manager"])
-    person.refresh_from_db()
-
-    assert not person.is_staff and not person.is_superuser
-
-    post_change(it_client, person, access_groups=["manager"], is_staff="on")
-    person.refresh_from_db()
-
-    assert person.is_staff and not person.is_superuser
-    assert held(person) == {"manager"}
 
 
 def test_clearing_an_account_with_no_second_step_changes_nothing(account, sent):
