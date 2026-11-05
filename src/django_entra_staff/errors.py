@@ -9,7 +9,6 @@ class ErrorCode(StrEnum):
 
     UNDECLARED_ACCESS_GROUP = "undeclared_access_group"
     EXCLUSIVE_NEEDS_ONE_GROUP = "exclusive_needs_one_group"
-    LAST_APP_ADMIN = "last_app_admin"
     ACCOUNT_EXISTS = "account_exists"
     MICROSOFT_LINKED = "microsoft_linked"
 

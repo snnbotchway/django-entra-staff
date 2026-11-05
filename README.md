@@ -106,7 +106,7 @@ ENTRA_STAFF = {
 | `ACCESS_GROUPS` | Required. The App's Access groups, created as Django groups after every `migrate`. |
 | `GROUP_MODE` | `"adding"` (default): an Account may hold several Access groups. `"exclusive"`: exactly one. |
 | `LOWEST_ACCESS_GROUP` | The group Open to staff sign-ups get. Required for `open_to_staff`. |
-| `APP_ADMIN_GROUP` | Required. The group whose members manage people. The last App admin cannot lose it. |
+| `APP_ADMIN_GROUP` | Required. The group whose members manage people. |
 
 The group names are yours; the package names none. Unknown keys are refused.
 
@@ -191,7 +191,7 @@ IT can invite, set Access groups and block or unblock from here, all through the
 - **Change** sets the Access groups, the blocked state and the Django admin access flags (`is_staff`, `is_superuser`). Only the declared Access groups are offered, as checkboxes or, when they are exclusive, as one choice. Other Django groups are left alone.
 - **Actions** block or unblock the selected Accounts, set a Temporary password, clear the Second step, and remove a Microsoft link.
 
-A refusal, such as removing the last App admin, shows a message and saves nothing. Subclass `AccountAdmin` to add columns. Override the Temporary password form with a template at `django_entra_staff/set_temporary_password.html`.
+A refusal, such as two Access groups when they are exclusive, shows a message and saves nothing. Subclass `AccountAdmin` to add columns. Override the Temporary password form with a template at `django_entra_staff/set_temporary_password.html`.
 
 The admin sign-in page is replaced on the default `admin.site`: it sends people to `LOGIN_URL`, so the admin opens only after Microsoft sign-in or password plus Second step. An App with its own `AdminSite` must wrap its `login` the same way:
 
@@ -243,7 +243,7 @@ Use these from the App's own screens, commands and tests, never the models and a
 | `has_access_group(account, access_group)` | Whether the Account holds the group; `False` when not signed in. |
 | `has_microsoft_link(account)` | Whether the Account has a Microsoft link, so it can never have a password. |
 
-Error codes: `undeclared_access_group`, `exclusive_needs_one_group`, `last_app_admin`, `account_exists`, `microsoft_linked`.
+Error codes: `undeclared_access_group`, `exclusive_needs_one_group`, `account_exists`, `microsoft_linked`.
 
 Only `set_temporary_password` takes a password. No function returns password data, and none touches Django admin access.
 

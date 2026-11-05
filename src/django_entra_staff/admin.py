@@ -32,9 +32,6 @@ class TemporaryPasswordForm(forms.Form):
 REFUSALS = {
     ErrorCode.UNDECLARED_ACCESS_GROUP: _("That Access group isn't available."),
     ErrorCode.EXCLUSIVE_NEEDS_ONE_GROUP: _("Choose exactly one Access group."),
-    ErrorCode.LAST_APP_ADMIN: _(
-        "The last App admin can't lose the App admin group. Make someone else an App admin first."
-    ),
     ErrorCode.ACCOUNT_EXISTS: _("An Account with this email already exists."),
 }
 

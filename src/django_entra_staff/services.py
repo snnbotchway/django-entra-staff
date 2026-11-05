@@ -50,25 +50,10 @@ def _check_shape(names: frozenset[str]) -> None:
         )
 
 
-def _check_an_app_admin_remains(account, names: frozenset[str]) -> None:
-    admin_group = get_settings().app_admin_group
-    if admin_group in names or not account.is_active:
-        return
-    # Lock the group row so two concurrent removals cannot each see the other admin still there.
-    list(Group.objects.select_for_update().filter(name=admin_group))
-    holders = get_user_model().objects.filter(is_active=True, groups__name=admin_group)
-    if holders.filter(pk=account.pk).exists() and not holders.exclude(pk=account.pk).exists():
-        raise StaffError(
-            ErrorCode.LAST_APP_ADMIN,
-            "The last App admin cannot lose the App admin group.",
-        )
-
-
 def _replace_groups(account, names: frozenset[str], acting_account) -> None:
     previous = _held_groups(account)
     if names == previous:
         return
-    _check_an_app_admin_remains(account, names)
     account.groups.remove(*account.groups.filter(name__in=previous))
     account.groups.add(*(Group.objects.get_or_create(name=name)[0] for name in names))
     signals.access_groups_changed.send(

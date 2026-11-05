@@ -1,7 +1,6 @@
 """The Django admin: the Account support page, its sign-in and its actions."""
 
 import re
-from html import unescape
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -409,20 +408,6 @@ def test_exclusive_access_groups_are_picked_one_at_a_time(it_client):
     assert response.status_code == 200
     assert "Choose exactly one Access group." in response.content.decode()
     assert held(person) == {"editor"}
-
-
-def test_a_refused_change_shows_a_message_and_saves_nothing(it_client):
-    only_admin = services.invite_account("boss@example.org", ["manager"])
-
-    response = post_change(it_client, only_admin, access_groups=["viewer"], is_staff="on")
-
-    assert response.status_code == 200
-    assert "The last App admin can't lose the App admin group." in unescape(
-        response.content.decode()
-    )
-    assert held(only_admin) == {"manager"}
-    only_admin.refresh_from_db()
-    assert not only_admin.is_staff
 
 
 @pytest.fixture

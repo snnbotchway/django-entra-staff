@@ -145,41 +145,10 @@ def test_exclusive_mode_refuses_anything_but_one_group(admin_account, groups):
     assert refused.value.code == ErrorCode.EXCLUSIVE_NEEDS_ONE_GROUP
 
 
-def test_the_last_app_admin_cannot_lose_the_app_admin_group(sent, admin_account):
-    with pytest.raises(StaffError) as refused:
-        services.set_access_groups(admin_account, ["viewer"], acting_account=admin_account)
-
-    assert refused.value.code == ErrorCode.LAST_APP_ADMIN
-    assert group_names(admin_account) == {"manager"}
-
-
-def test_an_app_admin_can_lose_the_group_while_another_active_admin_remains(admin_account):
-    other = services.invite_account("other@example.com", ["manager"])
-
-    services.set_access_groups(admin_account, ["viewer"], acting_account=other)
+def test_the_only_app_admin_can_lose_the_app_admin_group(admin_account):
+    services.set_access_groups(admin_account, ["viewer"], acting_account=admin_account)
 
     assert group_names(admin_account) == {"viewer"}
-    with pytest.raises(StaffError) as refused:
-        services.set_access_groups(other, ["viewer"], acting_account=other)
-    assert refused.value.code == ErrorCode.LAST_APP_ADMIN
-
-
-def test_a_blocked_app_admin_does_not_count_as_another_admin(admin_account):
-    other = services.invite_account("other@example.com", ["manager"])
-    services.block_account(other)
-
-    with pytest.raises(StaffError) as refused:
-        services.set_access_groups(admin_account, ["viewer"])
-
-    assert refused.value.code == ErrorCode.LAST_APP_ADMIN
-
-
-@override_settings(ENTRA_STAFF=variants.INVITE_ONLY_EXCLUSIVE)
-def test_exclusive_mode_replacing_the_app_admin_group_of_the_last_admin_is_refused(admin_account):
-    with pytest.raises(StaffError) as refused:
-        services.set_access_groups(admin_account, "editor")
-
-    assert refused.value.code == ErrorCode.LAST_APP_ADMIN
 
 
 def test_block_and_unblock_flip_the_account_and_send_their_signals(sent, admin_account):
