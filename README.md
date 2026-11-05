@@ -294,11 +294,13 @@ uv run ruff check . && uv run ruff format --check .
 
 Releases go to PyPI only through [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) from GitHub Actions ([`release.yml`](.github/workflows/release.yml)). There is no PyPI token anywhere, and the publish job waits for a maintainer to approve it.
 
-1. Set `version` in `pyproject.toml`, merge it to `main`.
-2. Tag the merge commit and push the tag: `git tag v1.2.3 && git push origin v1.2.3`. The tag must match the version.
-3. The workflow lints, tests and builds with uv, then waits in the `pypi` environment. Approve it in the run to publish.
+1. In GitHub, open **Actions → Release → Run workflow** on `main` and pick the size: **patch** for fixes, **minor** for new features, **major** for changes that break Apps. For the first release (the version is `0.0.0` until then), pick **minor** to publish `0.1.0`.
+2. The workflow bumps the version, lints, tests and builds with uv, then commits `Release vX.Y.Z` to `main` and tags it. If a test fails, nothing is committed.
+3. It then waits in the `pypi` environment. Open the run and choose **Review deployments → Approve** to publish.
+
+Each version number can be published once, ever: to fix a bad release, publish the next one. Pushing a `v*` tag by hand also releases; the tag must then match the version in `pyproject.toml`.
 
 One-time setup, in GitHub and PyPI:
 
-- GitHub: create an environment named `pypi` (Settings, Environments) with **Required reviewers** set to the maintainers, and restrict it to `v*` tags.
+- GitHub: create an environment named `pypi` (Settings, Environments) with **Required reviewers** set to the maintainers, and allow only the `main` branch and `v*` tags to deploy to it.
 - PyPI: add a trusted publisher for the project `django-entra-staff` (for a first release, a pending publisher under Your account, Publishing): this repository, workflow `release.yml`, environment `pypi`.
