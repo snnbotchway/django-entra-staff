@@ -42,8 +42,9 @@ class AbstractAccount(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         abstract = True
-        verbose_name = _("Account")
-        verbose_name_plural = _("Accounts")
+        # Django admin users know this screen as "Users"; Apps can rename it.
+        verbose_name = _("user")
+        verbose_name_plural = _("users")
         constraints = [
             models.UniqueConstraint(Lower("email"), name="%(app_label)s_%(class)s_email_ci_unique"),
         ]

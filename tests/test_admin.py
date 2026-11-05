@@ -216,7 +216,7 @@ def test_the_admin_sets_a_temporary_password_through_the_service(
     )
 
     assert response.status_code == 200
-    assert "Temporary password set for 1 Account." in response.content.decode()
+    assert "Temporary password set for 1 user." in response.content.decode()
     person.refresh_from_db()
     assert person.check_password(TEMP_PASSWORD)
     assert person.must_replace_password
@@ -252,8 +252,8 @@ def test_setting_a_temporary_password_refuses_a_linked_account(it_client):
 
     assert response.status_code == 200
     content = response.content.decode()
-    assert "Temporary password set for 1 Account." in content
-    assert "Not set for 1 Account with a Microsoft link" in content
+    assert "Temporary password set for 1 user." in content
+    assert "Not set for 1 user with a Microsoft link" in content
     person.refresh_from_db()
     assert person.check_password(TEMP_PASSWORD)
     linked.refresh_from_db()
@@ -291,7 +291,7 @@ def test_the_admin_clears_authenticators_so_the_next_sign_in_sets_up_again(
     )
 
     assert response.status_code == 200
-    assert "Cleared the Second step for 1 Account." in response.content.decode()
+    assert "Cleared the Second step for 1 user." in response.content.decode()
     assert not Authenticator.objects.filter(user=second_step_account).exists()
     assert sent == [("authenticators_cleared", second_step_account, it)]
 
@@ -317,7 +317,7 @@ def test_the_admin_removes_the_microsoft_link_and_the_next_sign_in_links_again(
     )
 
     assert response.status_code == 200
-    assert "Removed the Microsoft link from 1 Account." in response.content.decode()
+    assert "Removed the Microsoft link from 1 user." in response.content.decode()
     assert not SocialAccount.objects.filter(user=person).exists()
     assert sent == [("microsoft_link_removed", person, it)]
     person.refresh_from_db()
@@ -334,9 +334,9 @@ def test_the_admin_removes_the_microsoft_link_and_the_next_sign_in_links_again(
 @pytest.mark.parametrize(
     ("action", "warning"),
     [
-        ("remove_microsoft_link", "None of the selected Accounts had a Microsoft link."),
-        ("clear_authenticators", "None of the selected Accounts had a Second step to clear."),
-        ("unblock_accounts", "None of the selected Accounts were blocked."),
+        ("remove_microsoft_link", "None of the selected users had a Microsoft link."),
+        ("clear_authenticators", "None of the selected users had a Second step to clear."),
+        ("unblock_accounts", "None of the selected users were blocked."),
     ],
 )
 def test_an_action_that_changes_nothing_says_so(it_client, sent, action, warning):
@@ -497,7 +497,7 @@ def test_it_blocks_and_unblocks_accounts_from_the_changelist(it_client, it, bloc
         changelist, {"action": "block_accounts", "_selected_action": selected}, follow=True
     )
 
-    assert "Blocked 1 Account." in response.content.decode()
+    assert "Blocked 1 user." in response.content.decode()
     assert not get_user_model().objects.filter(pk__in=selected, is_active=True).exists()
     assert block_events == [(one, it, signals.account_blocked)]
 
@@ -505,7 +505,7 @@ def test_it_blocks_and_unblocks_accounts_from_the_changelist(it_client, it, bloc
         changelist, {"action": "unblock_accounts", "_selected_action": selected}, follow=True
     )
 
-    assert "Unblocked 2 Accounts." in response.content.decode()
+    assert "Unblocked 2 users." in response.content.decode()
     assert get_user_model().objects.filter(pk__in=selected, is_active=True).count() == 2
 
 
@@ -538,7 +538,7 @@ def test_inviting_an_existing_email_is_a_form_error(it_client):
     )
 
     assert response.status_code == 200
-    assert "An Account with this email already exists." in response.content.decode()
+    assert "A user with this email already exists." in response.content.decode()
     assert get_user_model().objects.filter(email__iexact="jane.doe@example.org").count() == 1
 
 

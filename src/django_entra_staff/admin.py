@@ -79,7 +79,7 @@ class InviteForm(AccessGroupsForm):
         email = self.cleaned_data["email"]
         if type(self.instance).objects.filter(email__iexact=email).exists():
             raise forms.ValidationError(
-                _("An Account with this email already exists."), code=ErrorCode.ACCOUNT_EXISTS
+                _("A user with this email already exists."), code=ErrorCode.ACCOUNT_EXISTS
             )
         return email
 
@@ -220,24 +220,24 @@ class AccountAdmin(UserAdmin):
     def last_sign_in(self, account):
         return account.last_login or self.get_empty_value_display()
 
-    @admin.action(description=_("Block the selected Accounts"))
+    @admin.action(description=_("Block the selected users"))
     def block_accounts(self, request, queryset):
         self._set_blocked(
             request,
             queryset.filter(is_active=True),
             services.block_account,
             _("Blocked %(count)d %(items)s."),
-            _("All the selected Accounts were already blocked."),
+            _("All the selected users were already blocked."),
         )
 
-    @admin.action(description=_("Unblock the selected Accounts"))
+    @admin.action(description=_("Unblock the selected users"))
     def unblock_accounts(self, request, queryset):
         self._set_blocked(
             request,
             queryset.filter(is_active=False),
             services.unblock_account,
             _("Unblocked %(count)d %(items)s."),
-            _("None of the selected Accounts were blocked."),
+            _("None of the selected users were blocked."),
         )
 
     def _set_blocked(self, request, accounts, change, done_message, nothing_message):
@@ -307,7 +307,7 @@ class AccountAdmin(UserAdmin):
             request,
             count,
             _("Cleared the Second step for %(count)d %(items)s."),
-            _("None of the selected Accounts had a Second step to clear."),
+            _("None of the selected users had a Second step to clear."),
         )
 
     @admin.action(description=_("Remove the Microsoft link"))
@@ -320,7 +320,7 @@ class AccountAdmin(UserAdmin):
             request,
             count,
             _("Removed the Microsoft link from %(count)d %(items)s."),
-            _("None of the selected Accounts had a Microsoft link."),
+            _("None of the selected users had a Microsoft link."),
         )
 
     def _report(self, request, count, done_message, nothing_message):
