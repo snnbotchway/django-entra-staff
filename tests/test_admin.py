@@ -559,3 +559,31 @@ def test_an_exclusive_invite_needs_exactly_one_access_group(it_client):
 def test_clearing_an_account_with_no_second_step_changes_nothing(account, sent):
     assert services.clear_authenticators(account) is False
     assert sent == []
+
+
+def change_own_password(client):
+    return client.post(
+        reverse("admin:password_change"),
+        {"old_password": PASSWORD, "new_password1": NEW_OWN, "new_password2": NEW_OWN},
+    )
+
+
+NEW_OWN = "a-brand-new-password-9"
+
+
+def test_a_linked_it_person_cannot_set_a_password_from_the_admin(it_client, it):
+    link_microsoft(it)
+
+    response = change_own_password(it_client)
+
+    it.refresh_from_db()
+    assert response.status_code == 403
+    assert not it.check_password(NEW_OWN)
+
+
+def test_an_unlinked_it_person_changes_their_own_password_in_the_admin(it_client, it):
+    response = change_own_password(it_client)
+
+    it.refresh_from_db()
+    assert response.status_code == 302
+    assert it.check_password(NEW_OWN)
