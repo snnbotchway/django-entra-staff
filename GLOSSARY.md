@@ -25,7 +25,7 @@ The tie between an Account and one Microsoft person, made at that person's first
 _Avoid_: Entra identity, social account
 
 **Sign-up rule**:
-What an App does when someone with no Account completes Microsoft sign-in: refuse them (**Invite only**, the default) or make them an Account with the App's lowest access (**Open to staff**).
+What an App does when someone with no Account completes Microsoft sign-in: refuse them (**Invite only**, the default) or make them an Account with only the App's Lowest access (**Open to staff**).
 _Avoid_: Auto-provisioning, registration
 
 **Second step**:
@@ -45,6 +45,10 @@ _Avoid_: Forgot password (in code and docs; fine as on-screen wording)
 **Access group**:
 A named group an App declares to say what an Account may do there. An App's Access groups either add up (a person can hold several) or are exclusive (a person holds exactly one).
 _Avoid_: Role (as a separate thing), permission, workspace
+
+**Lowest access**:
+The one Access group an App names as the least it grants, given to every Account that Open to staff makes.
+_Avoid_: Default group, base role
 
 **App admin**:
 An Access group whose members manage people and data inside the App's own screens. App admins never see or set passwords.
