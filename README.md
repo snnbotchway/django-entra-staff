@@ -297,6 +297,7 @@ Releases go to PyPI only through [Trusted Publishing](https://docs.pypi.org/trus
 1. In GitHub, open **Actions → Release → Run workflow** on `main` and pick the size: **patch** for fixes, **minor** for new features, **major** for changes that break Apps. For the first release (the version is `0.0.0` until then), pick **minor** to publish `0.1.0`.
 2. The workflow bumps the version, lints, tests and builds with uv, then commits `Release vX.Y.Z` to `main` and tags it. If a test fails, nothing is committed.
 3. It then waits in the `pypi` environment. Open the run and choose **Review deployments → Approve** to publish.
+4. Once PyPI has the files, it creates the GitHub Release for the tag, with notes listing the changes since the last release and the built files attached.
 
 Each version number can be published once, ever: to fix a bad release, publish the next one. Pushing a `v*` tag by hand also releases; the tag must then match the version in `pyproject.toml`.
 
