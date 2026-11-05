@@ -39,7 +39,7 @@ jobs:
       - name: A pushed tag must be on main
         if: github.event_name == 'push'
         run: git merge-base --is-ancestor "${GITHUB_SHA}" origin/main
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
       - name: Bump the version
         if: github.event_name == 'workflow_dispatch'
         run: uv version --bump "${{ inputs.bump }}"
@@ -82,7 +82,7 @@ jobs:
         with:
           name: dist
           path: dist/
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
       - run: uv publish --trusted-publishing always
 
   github-release:
