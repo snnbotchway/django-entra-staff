@@ -9,7 +9,7 @@ class ErrorCode(StrEnum):
 
     UNDECLARED_ACCESS_GROUP = "undeclared_access_group"
     EXCLUSIVE_NEEDS_ONE_GROUP = "exclusive_needs_one_group"
-    ACCOUNT_EXISTS = "account_exists"
+    USER_EXISTS = "user_exists"
     MICROSOFT_LINKED = "microsoft_linked"
 
 
@@ -18,10 +18,10 @@ class SignInErrorCode(StrEnum):
     error shape. Apps match on them, so never rename or reuse a value."""
 
     USE_MICROSOFT_SIGNIN = "use_microsoft_signin"
-    ACCOUNT_BLOCKED = "account_blocked"
+    USER_BLOCKED = "user_blocked"
     INVITE_ONLY = "invite_only"
     NO_WORK_EMAIL = "no_work_email"
-    ACCOUNT_ALREADY_LINKED = "account_already_linked"
+    USER_ALREADY_LINKED = "user_already_linked"
     CONNECT_NOT_SUPPORTED = "connect_not_supported"
     DISCONNECT_NOT_SUPPORTED = "disconnect_not_supported"
     EMAIL_CHANGE_NOT_SUPPORTED = "email_change_not_supported"

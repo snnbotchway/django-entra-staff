@@ -56,7 +56,7 @@ AUTH_PASSWORD_VALIDATORS = [
     }
 ]
 
-AUTH_USER_MODEL = "testapp.Account"
+AUTH_USER_MODEL = "testapp.User"
 AUTHENTICATION_BACKENDS = ["allauth.account.auth_backends.AuthenticationBackend"]
 
 ENTRA_STAFF = INVITE_ONLY_ADDING

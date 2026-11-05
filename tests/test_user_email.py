@@ -13,7 +13,7 @@ COLLEAGUE = "colleague@example.org"
 
 
 @pytest.fixture
-def account():
+def user():
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
 
 
@@ -27,8 +27,8 @@ def patch_primary(client, email):
     )
 
 
-def test_a_linked_account_cannot_add_an_email(microsoft, client, account):
-    microsoft.sign_in(client, email=account.email)
+def test_a_linked_user_cannot_add_an_email(microsoft, client, user):
+    microsoft.sign_in(client, email=user.email)
 
     response = post_email(client, COLLEAGUE)
 
@@ -38,40 +38,40 @@ def test_a_linked_account_cannot_add_an_email(microsoft, client, account):
     assert mail.outbox == []
 
 
-def test_a_linked_account_cannot_make_another_email_its_primary(microsoft, client, account):
-    microsoft.sign_in(client, email=account.email)
-    EmailAddress.objects.create(user=account, email=COLLEAGUE)
+def test_a_linked_user_cannot_make_another_email_its_primary(microsoft, client, user):
+    microsoft.sign_in(client, email=user.email)
+    EmailAddress.objects.create(user=user, email=COLLEAGUE)
 
     response = patch_primary(client, COLLEAGUE)
 
     assert response.status_code == 403
     assert response.json()["errors"][0]["code"] == "email_change_not_supported"
-    account.refresh_from_db()
-    assert account.email == "jane.doe@example.org"
+    user.refresh_from_db()
+    assert user.email == "jane.doe@example.org"
 
 
-def test_an_account_with_a_password_can_still_add_an_email(client, account):
-    client.force_login(account)
+def test_an_user_with_a_password_can_still_add_an_email(client, user):
+    client.force_login(user)
 
     response = post_email(client, "jane@example.com")
 
     assert response.status_code == 200
-    assert EmailAddress.objects.filter(user=account, email="jane@example.com").exists()
+    assert EmailAddress.objects.filter(user=user, email="jane@example.com").exists()
     assert [message.to for message in mail.outbox] == [["jane@example.com"]]
 
 
 def test_an_unverified_address_cannot_become_primary_and_capture_a_colleagues_sign_in(
-    microsoft, client, account
+    microsoft, client, user
 ):
-    client.force_login(account)
+    client.force_login(user)
     post_email(client, COLLEAGUE)
 
     response = patch_primary(client, COLLEAGUE)
 
     assert response.status_code == 400
     assert response.json()["errors"][0]["code"] == "unverified_primary_email"
-    account.refresh_from_db()
-    assert account.email == "jane.doe@example.org"
+    user.refresh_from_db()
+    assert user.email == "jane.doe@example.org"
 
     colleague = microsoft.sign_in(Client(), email=COLLEAGUE)
 
@@ -79,15 +79,15 @@ def test_an_unverified_address_cannot_become_primary_and_capture_a_colleagues_si
     assert not SocialAccount.objects.exists()
 
 
-def test_a_verified_address_can_become_primary(client, account):
-    client.force_login(account)
-    EmailAddress.objects.create(user=account, email="jane@example.com", verified=True)
+def test_a_verified_address_can_become_primary(client, user):
+    client.force_login(user)
+    EmailAddress.objects.create(user=user, email="jane@example.com", verified=True)
 
     response = patch_primary(client, "jane@example.com")
 
     assert response.status_code == 200
-    account.refresh_from_db()
-    assert account.email == "jane@example.com"
+    user.refresh_from_db()
+    assert user.email == "jane@example.com"
 
 
 @override_settings(
@@ -96,9 +96,9 @@ def test_a_verified_address_can_become_primary(client, account):
     ACCOUNT_EMAIL_VERIFICATION_SUPPORTS_CHANGE=True,
 )
 def test_a_person_waiting_to_verify_their_email_cannot_change_it_to_a_colleagues(
-    microsoft, client, account
+    microsoft, client, user
 ):
-    pending = sign_in(client, account.email, PASSWORD)
+    pending = sign_in(client, user.email, PASSWORD)
     assert [flow["id"] for flow in pending.json()["data"]["flows"] if flow.get("is_pending")] == [
         "verify_email"
     ]
@@ -106,8 +106,8 @@ def test_a_person_waiting_to_verify_their_email_cannot_change_it_to_a_colleagues
     response = post_email(client, COLLEAGUE)
 
     assert response.status_code == 403
-    account.refresh_from_db()
-    assert account.email == "jane.doe@example.org"
+    user.refresh_from_db()
+    assert user.email == "jane.doe@example.org"
     colleague = microsoft.sign_in(Client(), email=COLLEAGUE)
     assert error_code(colleague) == "invite_only"
     assert not SocialAccount.objects.exists()

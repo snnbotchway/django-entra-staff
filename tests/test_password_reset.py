@@ -32,18 +32,18 @@ def reset_key_from_mail():
 
 
 @pytest.fixture
-def account():
+def user():
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
 
 
-def test_a_reset_email_is_sent_to_an_account_with_a_password(client, account):
-    response = request_reset(client, account.email)
+def test_a_reset_email_is_sent_to_an_user_with_a_password(client, user):
+    response = request_reset(client, user.email)
 
     assert response.status_code == 200
-    assert [message.to for message in mail.outbox] == [[account.email]]
+    assert [message.to for message in mail.outbox] == [[user.email]]
 
 
-def test_no_reset_email_for_an_account_without_a_password(client):
+def test_no_reset_email_for_an_user_without_a_password(client):
     get_user_model().objects.create_user("jane.doe@example.org")
 
     response = request_reset(client, "jane.doe@example.org")
@@ -52,10 +52,10 @@ def test_no_reset_email_for_an_account_without_a_password(client):
     assert not mail.outbox
 
 
-def test_no_reset_email_for_a_linked_account_even_with_a_password(client, account):
-    link_microsoft(account)
+def test_no_reset_email_for_a_linked_user_even_with_a_password(client, user):
+    link_microsoft(user)
 
-    response = request_reset(client, account.email)
+    response = request_reset(client, user.email)
 
     assert response.status_code == 200
     assert not mail.outbox
@@ -74,8 +74,8 @@ def test_the_reset_request_answers_the_same_way_whatever_the_email(client):
     assert all(response.json() == {"status": 200} for response in responses)
 
 
-def test_after_a_reset_the_next_sign_in_still_needs_the_second_step(client, second_step_account):
-    request_reset(client, second_step_account.email)
+def test_after_a_reset_the_next_sign_in_still_needs_the_second_step(client, second_step_user):
+    request_reset(client, second_step_user.email)
     response = client.post(
         f"{API}/auth/password/reset",
         {"key": reset_key_from_mail(), "password": NEW_PASSWORD},
@@ -85,7 +85,7 @@ def test_after_a_reset_the_next_sign_in_still_needs_the_second_step(client, seco
     assert response.status_code == 401
     assert not is_signed_in(client)
 
-    response = sign_in(client, second_step_account.email, NEW_PASSWORD)
+    response = sign_in(client, second_step_user.email, NEW_PASSWORD)
 
     assert response.status_code == 401
     assert {
@@ -97,7 +97,7 @@ def test_after_a_reset_the_next_sign_in_still_needs_the_second_step(client, seco
 
     response = client.post(
         f"{API}/auth/2fa/authenticate",
-        {"code": totp_code(totp_secret_of(second_step_account))},
+        {"code": totp_code(totp_secret_of(second_step_user))},
         content_type="application/json",
     )
 
@@ -105,15 +105,13 @@ def test_after_a_reset_the_next_sign_in_still_needs_the_second_step(client, seco
     assert is_signed_in(client)
 
 
-def test_a_reset_key_issued_before_linking_dies_when_the_account_is_linked(
-    client, microsoft, account
-):
-    request_reset(client, account.email)
+def test_a_reset_key_issued_before_linking_dies_when_the_user_is_linked(client, microsoft, user):
+    request_reset(client, user.email)
     key = reset_key_from_mail()
 
-    microsoft.sign_in(client, email=account.email)
-    account.refresh_from_db()
-    assert not account.has_usable_password()
+    microsoft.sign_in(client, email=user.email)
+    user.refresh_from_db()
+    assert not user.has_usable_password()
 
     response = client.post(
         f"{API}/auth/password/reset",
@@ -123,29 +121,29 @@ def test_a_reset_key_issued_before_linking_dies_when_the_account_is_linked(
 
     assert response.status_code == 400
     assert response.json()["errors"][0]["code"] == "invalid_password_reset"
-    account.refresh_from_db()
-    assert not account.has_usable_password()
+    user.refresh_from_db()
+    assert not user.has_usable_password()
 
 
 def test_resetting_a_temporary_password_does_not_ask_for_a_replacement_again(
-    client, second_step_account
+    client, second_step_user
 ):
-    services.set_temporary_password(second_step_account, "temporary-pass-1")
-    request_reset(client, second_step_account.email)
+    services.set_temporary_password(second_step_user, "temporary-pass-1")
+    request_reset(client, second_step_user.email)
     client.post(
         f"{API}/auth/password/reset",
         {"key": reset_key_from_mail(), "password": NEW_PASSWORD},
         content_type="application/json",
     )
 
-    sign_in(client, second_step_account.email, NEW_PASSWORD)
+    sign_in(client, second_step_user.email, NEW_PASSWORD)
     response = client.post(
         f"{API}/auth/2fa/authenticate",
-        {"code": totp_code(totp_secret_of(second_step_account))},
+        {"code": totp_code(totp_secret_of(second_step_user))},
         content_type="application/json",
     )
 
     assert response.status_code == 200
     assert is_signed_in(client)
-    second_step_account.refresh_from_db()
-    assert not second_step_account.must_replace_password
+    second_step_user.refresh_from_db()
+    assert not second_step_user.must_replace_password

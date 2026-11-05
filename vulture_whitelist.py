@@ -12,6 +12,7 @@ _ = object()
 _.is_open_for_signup
 _.validate_disconnect
 _.pre_social_login
+accounts              # validate_disconnect(account, accounts) keeps allauth's parameter names
 
 # allauth headless input and view hooks (views.py)
 input_class

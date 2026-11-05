@@ -17,7 +17,7 @@ OTHER_TENANT = "22222222-2222-2222-2222-222222222222"
 
 
 @pytest.fixture
-def account():
+def user():
     return get_user_model().objects.create_user("Jane.Doe@example.org", PASSWORD)
 
 
@@ -32,9 +32,9 @@ def test_a_token_from_another_tenant_is_refused(microsoft, client):
 @pytest.mark.parametrize(
     "idp",
     [f"https://sts.windows.net/{OTHER_TENANT}/", "live.com"],
-    ids=["guest-from-another-tenant", "personal-microsoft-account-guest"],
+    ids=["guest-from-another-tenant", "personal-microsoft-user-guest"],
 )
-def test_a_guest_of_the_tenant_is_refused(microsoft, client, account, idp):
+def test_a_guest_of_the_tenant_is_refused(microsoft, client, user, idp):
     response = microsoft.sign_in(client, email="jane.doe@example.org", idp=idp)
 
     assert error_code(response) == "unknown"
@@ -43,7 +43,7 @@ def test_a_guest_of_the_tenant_is_refused(microsoft, client, account, idp):
 
 
 def test_a_member_whose_token_names_the_tenant_as_identity_provider_signs_in(
-    microsoft, client, account
+    microsoft, client, user
 ):
     tenant = get_settings().tenant_id
     idp = f"https://login.microsoftonline.com/{tenant}/v2.0"
@@ -54,8 +54,8 @@ def test_a_member_whose_token_names_the_tenant_as_identity_provider_signs_in(
     assert is_signed_in(client)
 
 
-def test_first_sign_in_links_the_account_by_email_and_removes_the_password(
-    microsoft, client, account, link_made_events
+def test_first_sign_in_links_the_user_by_email_and_removes_the_password(
+    microsoft, client, user, link_made_events
 ):
     response = microsoft.sign_in(client, email="jane.doe@example.org")
 
@@ -63,16 +63,14 @@ def test_first_sign_in_links_the_account_by_email_and_removes_the_password(
     assert error_code(response) is None
     assert is_signed_in(client)
     link = SocialAccount.objects.get(provider="microsoft", uid="uid-1")
-    assert link.user == account
-    account.refresh_from_db()
-    assert not account.has_usable_password()
-    assert [(event["account"], event["acting_account"]) for event in link_made_events] == [
-        (account, None)
-    ]
+    assert link.user == user
+    user.refresh_from_db()
+    assert not user.has_usable_password()
+    assert [(event["user"], event["acting_user"]) for event in link_made_events] == [(user, None)]
 
 
 def test_second_sign_in_uses_the_link_and_ignores_the_email(
-    microsoft, client, account, link_made_events
+    microsoft, client, user, link_made_events
 ):
     microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-1")
 
@@ -81,29 +79,27 @@ def test_second_sign_in_uses_the_link_and_ignores_the_email(
     assert response.status_code == 302
     assert error_code(response) is None
     assert is_signed_in(client)
-    account.refresh_from_db()
-    assert account.email == "Jane.Doe@example.org"
+    user.refresh_from_db()
+    assert user.email == "Jane.Doe@example.org"
     assert get_user_model().objects.count() == 1
     assert SocialAccount.objects.filter(provider="microsoft").count() == 1
     assert len(link_made_events) == 1
 
 
-def test_an_account_already_linked_to_another_microsoft_person_is_refused(
-    microsoft, client, account
-):
+def test_an_user_already_linked_to_another_microsoft_person_is_refused(microsoft, client, user):
     microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-1")
     client.logout()
 
     response = microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-2")
 
-    assert error_code(response) == "account_already_linked"
+    assert error_code(response) == "user_already_linked"
     assert not is_signed_in(client)
     link = SocialAccount.objects.get(provider="microsoft")
     assert link.uid == "uid-1"
-    assert link.user == account
+    assert link.user == user
 
 
-def test_invite_only_refuses_a_person_with_no_account(microsoft, client):
+def test_invite_only_refuses_a_person_with_no_user(microsoft, client):
     response = microsoft.sign_in(client, email="new.person@example.org")
 
     assert error_code(response) == "invite_only"
@@ -112,32 +108,32 @@ def test_invite_only_refuses_a_person_with_no_account(microsoft, client):
     assert not SocialAccount.objects.exists()
 
 
-def test_a_blocked_account_with_a_link_is_refused(microsoft, client, account):
+def test_a_blocked_user_with_a_link_is_refused(microsoft, client, user):
     microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-1")
     client.logout()
-    account.is_active = False
-    account.save()
+    user.is_active = False
+    user.save()
 
     response = microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-1")
 
-    assert error_code(response) == "account_blocked"
+    assert error_code(response) == "user_blocked"
     assert not is_signed_in(client)
 
 
-def test_a_blocked_account_without_a_link_is_refused(microsoft, client, account):
-    account.is_active = False
-    account.save()
+def test_a_blocked_user_without_a_link_is_refused(microsoft, client, user):
+    user.is_active = False
+    user.save()
 
     response = microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-1")
 
-    assert error_code(response) == "account_blocked"
+    assert error_code(response) == "user_blocked"
     assert not is_signed_in(client)
     assert not SocialAccount.objects.exists()
-    account.refresh_from_db()
-    assert account.has_usable_password()
+    user.refresh_from_db()
+    assert user.has_usable_password()
 
 
-def test_the_link_and_the_password_removal_are_one_transaction(microsoft, client, account):
+def test_the_link_and_the_password_removal_are_one_transaction(microsoft, client, user):
     def failing_receiver(sender, **kwargs):
         raise RuntimeError("receiver failed")
 
@@ -149,23 +145,23 @@ def test_the_link_and_the_password_removal_are_one_transaction(microsoft, client
         microsoft_link_made.disconnect(failing_receiver)
 
     assert not SocialAccount.objects.exists()
-    account.refresh_from_db()
-    assert account.has_usable_password()
+    user.refresh_from_db()
+    assert user.has_usable_password()
 
 
-def test_connecting_a_microsoft_account_is_refused(microsoft, client, account):
-    client.force_login(account)
+def test_connecting_a_microsoft_user_is_refused(microsoft, client, user):
+    client.force_login(user)
 
     response = microsoft.sign_in(client, email="jane.doe@example.org", process="connect")
 
     assert error_code(response) == "connect_not_supported"
     assert not SocialAccount.objects.exists()
-    account.refresh_from_db()
-    assert account.has_usable_password()
+    user.refresh_from_db()
+    assert user.has_usable_password()
 
 
-def test_microsoft_sign_in_is_never_asked_for_the_second_step(microsoft, client, account):
-    TOTP.activate(account, generate_totp_secret())
+def test_microsoft_sign_in_is_never_asked_for_the_second_step(microsoft, client, user):
+    TOTP.activate(user, generate_totp_secret())
 
     response = microsoft.sign_in(client, email="jane.doe@example.org")
 
@@ -173,7 +169,7 @@ def test_microsoft_sign_in_is_never_asked_for_the_second_step(microsoft, client,
     assert is_signed_in(client)
 
 
-def test_a_linked_account_cannot_give_itself_a_password(microsoft, client, account):
+def test_a_linked_user_cannot_give_itself_a_password(microsoft, client, user):
     microsoft.sign_in(client, email="jane.doe@example.org")
 
     response = client.post(
@@ -184,17 +180,17 @@ def test_a_linked_account_cannot_give_itself_a_password(microsoft, client, accou
 
     assert response.status_code == 400
     assert response.json()["errors"][0]["code"] == "use_microsoft_signin"
-    account.refresh_from_db()
-    assert not account.has_usable_password()
+    user.refresh_from_db()
+    assert not user.has_usable_password()
 
 
-def test_a_linked_account_cannot_remove_its_microsoft_link(microsoft, client, account):
+def test_a_linked_user_cannot_remove_its_microsoft_link(microsoft, client, user):
     microsoft.sign_in(client, email="jane.doe@example.org")
     # The state a bypass would leave behind: a password next to the link.
-    account.refresh_from_db()
-    account.set_password(PASSWORD)
-    account.save()
-    client.force_login(account)
+    user.refresh_from_db()
+    user.set_password(PASSWORD)
+    user.save()
+    client.force_login(user)
 
     response = client.delete(
         f"{API}/account/providers",
@@ -204,13 +200,13 @@ def test_a_linked_account_cannot_remove_its_microsoft_link(microsoft, client, ac
 
     assert response.status_code == 400
     assert response.json()["errors"][0]["code"] == "disconnect_not_supported"
-    assert SocialAccount.objects.filter(user=account, provider="microsoft").exists()
+    assert SocialAccount.objects.filter(user=user, provider="microsoft").exists()
 
 
 @pytest.fixture
-def lowercase_account():
+def lowercase_user():
     """allauth's email match compares the lowercased address exactly, so only an
-    Account stored in lowercase is found by it."""
+    User stored in lowercase is found by it."""
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
 
 
@@ -218,7 +214,7 @@ def lowercase_account():
 def email_authentication_forced_on():
     """allauth's email authentication on, as an App could set it past the system
     check: the Microsoft email counts as verified, so allauth matches the
-    Account by email before the package's adapter is asked."""
+    User by email before the package's adapter is asked."""
     providers = {
         "microsoft": {**settings.SOCIALACCOUNT_PROVIDERS["microsoft"], "VERIFIED_EMAIL": True}
     }
@@ -229,67 +225,65 @@ def email_authentication_forced_on():
 
 
 @pytest.mark.usefixtures("email_authentication_forced_on")
-def test_allauths_email_match_still_links_the_account_and_removes_the_password(
-    microsoft, client, lowercase_account, link_made_events
+def test_allauths_email_match_still_links_the_user_and_removes_the_password(
+    microsoft, client, lowercase_user, link_made_events
 ):
     response = microsoft.sign_in(client, email="jane.doe@example.org")
 
     assert error_code(response) is None
     assert is_signed_in(client)
     link = SocialAccount.objects.get(provider="microsoft", uid="uid-1")
-    assert link.user == lowercase_account
-    lowercase_account.refresh_from_db()
-    assert not lowercase_account.has_usable_password()
+    assert link.user == lowercase_user
+    lowercase_user.refresh_from_db()
+    assert not lowercase_user.has_usable_password()
     assert len(link_made_events) == 1
 
 
 @pytest.mark.usefixtures("email_authentication_forced_on")
-def test_allauths_email_match_does_not_sign_in_to_an_account_linked_to_another_person(
-    microsoft, client, lowercase_account
+def test_allauths_email_match_does_not_sign_in_to_an_user_linked_to_another_person(
+    microsoft, client, lowercase_user
 ):
     microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-1")
     client.logout()
 
     response = microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-2")
 
-    assert error_code(response) == "account_already_linked"
+    assert error_code(response) == "user_already_linked"
     assert not is_signed_in(client)
     assert SocialAccount.objects.get(provider="microsoft").uid == "uid-1"
 
 
 @pytest.mark.usefixtures("email_authentication_forced_on")
-def test_allauths_email_match_does_not_sign_in_to_a_blocked_account(
-    microsoft, client, lowercase_account
-):
-    lowercase_account.is_active = False
-    lowercase_account.save()
+def test_allauths_email_match_does_not_sign_in_to_a_blocked_user(microsoft, client, lowercase_user):
+    lowercase_user.is_active = False
+    lowercase_user.save()
 
     response = microsoft.sign_in(client, email="jane.doe@example.org")
 
-    assert error_code(response) == "account_blocked"
+    assert error_code(response) == "user_blocked"
     assert not is_signed_in(client)
     assert not SocialAccount.objects.exists()
-    lowercase_account.refresh_from_db()
-    assert lowercase_account.has_usable_password()
+    lowercase_user.refresh_from_db()
+    assert lowercase_user.has_usable_password()
 
 
 @pytest.mark.usefixtures("email_authentication_forced_on")
 @override_settings(SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT=True)
 def test_allauths_email_match_with_auto_connect_makes_one_link(
-    microsoft, client, lowercase_account, link_made_events
+    microsoft, client, lowercase_user, link_made_events
 ):
     response = microsoft.sign_in(client, email="jane.doe@example.org")
 
     assert error_code(response) is None
     assert is_signed_in(client)
-    assert SocialAccount.objects.filter(user=lowercase_account, provider="microsoft").count() == 1
-    lowercase_account.refresh_from_db()
-    assert not lowercase_account.has_usable_password()
+    assert SocialAccount.objects.filter(user=lowercase_user, provider="microsoft").count() == 1
+    lowercase_user.refresh_from_db()
+    assert not lowercase_user.has_usable_password()
     assert len(link_made_events) == 1
 
 
 def test_a_link_made_under_another_provider_id_still_counts_as_the_microsoft_link(
-    microsoft, client, account
+    microsoft, client, user
 ):
     providers = {
         "microsoft": {
@@ -297,16 +291,16 @@ def test_a_link_made_under_another_provider_id_still_counts_as_the_microsoft_lin
         }
     }
     with override_settings(SOCIALACCOUNT_PROVIDERS=providers):
-        microsoft.sign_in(client, email=account.email, provider="entra")
+        microsoft.sign_in(client, email=user.email, provider="entra")
         client.logout()
-        assert SocialAccount.objects.get(user=account).provider == "entra"
+        assert SocialAccount.objects.get(user=user).provider == "entra"
 
         with pytest.raises(StaffError) as refused:
-            services.set_temporary_password(account, "temporary-pass-1")
-        other_person = microsoft.sign_in(client, email=account.email, uid="uid-2", provider="entra")
+            services.set_temporary_password(user, "temporary-pass-1")
+        other_person = microsoft.sign_in(client, email=user.email, uid="uid-2", provider="entra")
 
     assert refused.value.code == ErrorCode.MICROSOFT_LINKED
-    account.refresh_from_db()
-    assert not account.has_usable_password()
-    assert error_code(other_person) == "account_already_linked"
-    assert SocialAccount.objects.filter(user=account).count() == 1
+    user.refresh_from_db()
+    assert not user.has_usable_password()
+    assert error_code(other_person) == "user_already_linked"
+    assert SocialAccount.objects.filter(user=user).count() == 1

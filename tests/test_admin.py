@@ -1,4 +1,4 @@
-"""The Django admin: the Account support page, its sign-in and its actions."""
+"""The Django admin: the User support page, its sign-in and its actions."""
 
 import re
 from urllib.parse import parse_qs, urlparse
@@ -42,13 +42,13 @@ def it_client(client, it):
 
 
 @pytest.fixture
-def account():
+def user():
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
 
 
 @pytest.fixture
 def sent():
-    """(signal name, account, acting account) for each clear or link removal sent."""
+    """(signal name, user, acting user) for each clear or link removal sent."""
     received = []
     watched = {
         "authenticators_cleared": signals.authenticators_cleared,
@@ -58,7 +58,7 @@ def sent():
     for name, signal in watched.items():
 
         def receiver(sender, name=name, **kwargs):
-            received.append((name, kwargs["account"], kwargs["acting_account"]))
+            received.append((name, kwargs["user"], kwargs["acting_user"]))
 
         receivers[name] = receiver
         signal.connect(receiver, weak=False)
@@ -68,7 +68,7 @@ def sent():
 
 
 def row_of(response, email):
-    """The changelist row for the Account with this email, as HTML."""
+    """The changelist row for the User with this email, as HTML."""
     match = re.search(
         rf"<tr[^>]*>(?:(?!</tr>).)*{re.escape(email)}(?:(?!</tr>).)*</tr>",
         response.content.decode(),
@@ -86,25 +86,25 @@ def active_cell(row):
 
 
 def item_of(response, email):
-    """The list item naming the Account with this email, as HTML."""
+    """The list item naming the User with this email, as HTML."""
     match = re.search(rf"<li>[^<]*{re.escape(email)}.*?</li>", response.content.decode(), re.DOTALL)
     assert match, f"No list item for {email}"
     return match[0]
 
 
 def test_the_changelist_shows_what_it_needs_to_support_people(it_client):
-    invited = services.invite_account("invited@example.org", ["viewer", "editor"])
-    temporary = services.invite_account("temporary@example.org", ["viewer"])
+    invited = services.invite_user("invited@example.org", ["viewer", "editor"])
+    temporary = services.invite_user("temporary@example.org", ["viewer"])
     services.set_temporary_password(temporary, TEMP_PASSWORD)
-    linked = services.invite_account("linked@example.org", ["viewer"])
+    linked = services.invite_user("linked@example.org", ["viewer"])
     link_microsoft(linked, uid="uid-1", provider="entra")
-    blocked = services.invite_account("blocked@example.org", ["viewer"])
-    services.block_account(blocked)
+    blocked = services.invite_user("blocked@example.org", ["viewer"])
+    services.block_user(blocked)
     guarding = get_user_model().objects.create_user("guarding@example.org", PASSWORD)
     TOTP.activate(guarding, generate_totp_secret())
     RecoveryCodes.activate(guarding)
 
-    response = it_client.get(reverse("admin:testapp_account_changelist"))
+    response = it_client.get(reverse("admin:testapp_user_changelist"))
 
     row = row_of(response, invited.email)
     assert "editor, viewer" in row
@@ -157,7 +157,7 @@ def test_an_admin_signs_in_with_password_and_second_step(client):
     assert response.status_code == 200
     assert is_signed_in(client)
     assert client.get(reverse("admin:index")).status_code == 200
-    assert client.get(reverse("admin:testapp_account_changelist")).status_code == 200
+    assert client.get(reverse("admin:testapp_user_changelist")).status_code == 200
 
 
 def test_a_microsoft_sign_in_opens_the_admin(client, microsoft):
@@ -193,8 +193,8 @@ def test_an_access_group_never_grants_django_admin_access(client):
 def test_the_admin_sets_a_temporary_password_through_the_service(
     it_client, it, temporary_password_events
 ):
-    person = services.invite_account("jane.doe@example.org", ["viewer"])
-    changelist = reverse("admin:testapp_account_changelist")
+    person = services.invite_user("jane.doe@example.org", ["viewer"])
+    changelist = reverse("admin:testapp_user_changelist")
 
     response = it_client.post(
         changelist, {"action": "set_temporary_password", "_selected_action": str(person.pk)}
@@ -220,16 +220,16 @@ def test_the_admin_sets_a_temporary_password_through_the_service(
     person.refresh_from_db()
     assert person.check_password(TEMP_PASSWORD)
     assert person.must_replace_password
-    assert [(event["account"], event["acting_account"]) for event in temporary_password_events] == [
+    assert [(event["user"], event["acting_user"]) for event in temporary_password_events] == [
         (person, it)
     ]
 
 
-def test_setting_a_temporary_password_refuses_a_linked_account(it_client):
-    person = services.invite_account("jane.doe@example.org", ["viewer"])
-    linked = services.invite_account("linked@example.org", ["viewer"])
+def test_setting_a_temporary_password_refuses_a_linked_user(it_client):
+    person = services.invite_user("jane.doe@example.org", ["viewer"])
+    linked = services.invite_user("linked@example.org", ["viewer"])
     link_microsoft(linked, uid="uid-2")
-    changelist = reverse("admin:testapp_account_changelist")
+    changelist = reverse("admin:testapp_user_changelist")
     selected = [str(person.pk), str(linked.pk)]
 
     page = it_client.post(
@@ -261,10 +261,10 @@ def test_setting_a_temporary_password_refuses_a_linked_account(it_client):
 
 
 def test_a_temporary_password_must_meet_the_apps_password_rules(it_client):
-    person = services.invite_account("jane.doe@example.org", ["viewer"])
+    person = services.invite_user("jane.doe@example.org", ["viewer"])
 
     response = it_client.post(
-        reverse("admin:testapp_account_changelist"),
+        reverse("admin:testapp_user_changelist"),
         {
             "action": "set_temporary_password",
             "post": "yes",
@@ -280,22 +280,22 @@ def test_a_temporary_password_must_meet_the_apps_password_rules(it_client):
 
 
 def test_the_admin_clears_authenticators_so_the_next_sign_in_sets_up_again(
-    it_client, it, second_step_account, sent
+    it_client, it, second_step_user, sent
 ):
-    changelist = reverse("admin:testapp_account_changelist")
+    changelist = reverse("admin:testapp_user_changelist")
 
     response = it_client.post(
         changelist,
-        {"action": "clear_authenticators", "_selected_action": str(second_step_account.pk)},
+        {"action": "clear_authenticators", "_selected_action": str(second_step_user.pk)},
         follow=True,
     )
 
     assert response.status_code == 200
     assert "Cleared the Second step for 1 user." in response.content.decode()
-    assert not Authenticator.objects.filter(user=second_step_account).exists()
-    assert sent == [("authenticators_cleared", second_step_account, it)]
+    assert not Authenticator.objects.filter(user=second_step_user).exists()
+    assert sent == [("authenticators_cleared", second_step_user, it)]
 
-    response = sign_in(Client(), second_step_account.email, PASSWORD)
+    response = sign_in(Client(), second_step_user.email, PASSWORD)
 
     assert response.status_code == 401
     assert {"id": "second_step_setup", "is_pending": True} in response.json()["data"]["flows"]
@@ -304,11 +304,11 @@ def test_the_admin_clears_authenticators_so_the_next_sign_in_sets_up_again(
 def test_the_admin_removes_the_microsoft_link_and_the_next_sign_in_links_again(
     it_client, it, microsoft, link_made_events, sent
 ):
-    person = services.invite_account("jane.doe@example.org", ["viewer"])
+    person = services.invite_user("jane.doe@example.org", ["viewer"])
     browser = Client()
     microsoft.sign_in(browser, email=person.email)
     assert SocialAccount.objects.filter(user=person, provider="microsoft").exists()
-    changelist = reverse("admin:testapp_account_changelist")
+    changelist = reverse("admin:testapp_user_changelist")
 
     response = it_client.post(
         changelist,
@@ -336,14 +336,14 @@ def test_the_admin_removes_the_microsoft_link_and_the_next_sign_in_links_again(
     [
         ("remove_microsoft_link", "None of the selected users had a Microsoft link."),
         ("clear_authenticators", "None of the selected users had a Second step to clear."),
-        ("unblock_accounts", "None of the selected users were blocked."),
+        ("unblock_users", "None of the selected users were blocked."),
     ],
 )
 def test_an_action_that_changes_nothing_says_so(it_client, sent, action, warning):
-    person = services.invite_account("jane.doe@example.org", ["viewer"])
+    person = services.invite_user("jane.doe@example.org", ["viewer"])
 
     response = it_client.post(
-        reverse("admin:testapp_account_changelist"),
+        reverse("admin:testapp_user_changelist"),
         {"action": action, "_selected_action": str(person.pk)},
         follow=True,
     )
@@ -354,28 +354,28 @@ def test_an_action_that_changes_nothing_says_so(it_client, sent, action, warning
     assert sent == []
 
 
-def change_url(account):
-    return reverse("admin:testapp_account_change", args=[account.pk])
+def change_url(user):
+    return reverse("admin:testapp_user_change", args=[user.pk])
 
 
 def group_pks(*names):
     return [Group.objects.get(name=name).pk for name in names]
 
 
-def held(account):
-    return set(account.groups.values_list("name", flat=True))
+def held(user):
+    return set(user.groups.values_list("name", flat=True))
 
 
-def post_change(client, account, **fields):
+def post_change(client, user, **fields):
     """Submit the change form the way a browser does: unticked boxes are left out.
 
-    Active is ticked and the Access groups the Account holds are kept unless given;
+    Active is ticked and the Access groups the User holds are kept unless given;
     `is_active=None` unticks Active.
     """
-    declared = held(account) & {"viewer", "editor", "manager"}
+    declared = held(user) & {"viewer", "editor", "manager"}
     fields = {"is_active": "on", "groups": group_pks(*declared), **fields}
     fields = {name: value for name, value in fields.items() if value is not None}
-    return client.post(change_url(account), fields, follow=True)
+    return client.post(change_url(user), fields, follow=True)
 
 
 @pytest.fixture
@@ -383,29 +383,29 @@ def group_events():
     received = []
 
     def receiver(sender, **kwargs):
-        received.append((kwargs["account"], kwargs["acting_account"], kwargs["groups"]))
+        received.append((kwargs["user"], kwargs["acting_user"], kwargs["groups"]))
 
     signals.access_groups_changed.connect(receiver, weak=False)
     yield received
     signals.access_groups_changed.disconnect(receiver)
 
 
-def test_the_change_form_has_no_password_and_its_password_page_refuses(it_client, account):
-    response = it_client.get(change_url(account))
+def test_the_change_form_has_no_password_and_its_password_page_refuses(it_client, user):
+    response = it_client.get(change_url(user))
 
     assert "password" not in response.context["adminform"].form.fields
     assert "password/" not in response.content.decode()
 
-    password_page = reverse("admin:testapp_account_changelist") + f"{account.pk}/password/"
+    password_page = reverse("admin:testapp_user_changelist") + f"{user.pk}/password/"
     new_password = {"password1": "another-pass-12", "password2": "another-pass-12"}
     assert it_client.get(password_page).status_code == 403
     assert it_client.post(password_page, new_password).status_code == 403
-    account.refresh_from_db()
-    assert account.check_password(PASSWORD)
+    user.refresh_from_db()
+    assert user.check_password(PASSWORD)
 
 
 def test_it_sets_access_groups_in_the_picker_through_the_service(it_client, it, group_events):
-    person = services.invite_account("jane.doe@example.org", ["viewer"])
+    person = services.invite_user("jane.doe@example.org", ["viewer"])
     person.groups.add(Group.objects.create(name="payroll"))
     group_events.clear()
 
@@ -425,7 +425,7 @@ def test_it_sets_access_groups_in_the_picker_through_the_service(it_client, it, 
 
 @override_settings(ENTRA_STAFF=variants.INVITE_ONLY_EXCLUSIVE)
 def test_exclusive_access_groups_take_exactly_one_or_nothing_is_saved(it_client):
-    person = services.invite_account("jane.doe@example.org", ["viewer"])
+    person = services.invite_user("jane.doe@example.org", ["viewer"])
 
     response = post_change(it_client, person, groups=group_pks("viewer", "editor"), is_staff="on")
 
@@ -445,33 +445,33 @@ def block_events():
     received = []
 
     def receiver(sender, signal, **kwargs):
-        received.append((kwargs["account"], kwargs["acting_account"], signal))
+        received.append((kwargs["user"], kwargs["acting_user"], signal))
 
-    signals.account_blocked.connect(receiver, weak=False)
-    signals.account_unblocked.connect(receiver, weak=False)
+    signals.user_blocked.connect(receiver, weak=False)
+    signals.user_unblocked.connect(receiver, weak=False)
     yield received
-    signals.account_blocked.disconnect(receiver)
-    signals.account_unblocked.disconnect(receiver)
+    signals.user_blocked.disconnect(receiver)
+    signals.user_unblocked.disconnect(receiver)
 
 
 def test_unticking_active_blocks_and_ticking_it_unblocks(it_client, it, block_events):
-    person = services.invite_account("jane.doe@example.org", ["viewer"])
+    person = services.invite_user("jane.doe@example.org", ["viewer"])
 
     post_change(it_client, person, is_active=None)
 
     person.refresh_from_db()
     assert not person.is_active
-    assert block_events == [(person, it, signals.account_blocked)]
+    assert block_events == [(person, it, signals.user_blocked)]
 
     post_change(it_client, person)
 
     person.refresh_from_db()
     assert person.is_active
-    assert block_events[1:] == [(person, it, signals.account_unblocked)]
+    assert block_events[1:] == [(person, it, signals.user_unblocked)]
 
 
-def test_django_admin_access_is_edited_on_the_account_and_not_by_access_groups(it_client):
-    person = services.invite_account("jane.doe@example.org", ["viewer"])
+def test_django_admin_access_is_edited_on_the_user_and_not_by_access_groups(it_client):
+    person = services.invite_user("jane.doe@example.org", ["viewer"])
 
     post_change(it_client, person, groups=group_pks("manager"))
     person.refresh_from_db()
@@ -485,24 +485,24 @@ def test_django_admin_access_is_edited_on_the_account_and_not_by_access_groups(i
     assert held(person) == {"manager"}
 
 
-def test_it_blocks_and_unblocks_accounts_from_the_changelist(it_client, it, block_events):
-    one = services.invite_account("one@example.org", ["viewer"])
-    two = services.invite_account("two@example.org", ["viewer"])
-    services.block_account(two)
+def test_it_blocks_and_unblocks_users_from_the_changelist(it_client, it, block_events):
+    one = services.invite_user("one@example.org", ["viewer"])
+    two = services.invite_user("two@example.org", ["viewer"])
+    services.block_user(two)
     block_events.clear()
-    changelist = reverse("admin:testapp_account_changelist")
+    changelist = reverse("admin:testapp_user_changelist")
     selected = [str(one.pk), str(two.pk)]
 
     response = it_client.post(
-        changelist, {"action": "block_accounts", "_selected_action": selected}, follow=True
+        changelist, {"action": "block_users", "_selected_action": selected}, follow=True
     )
 
     assert "Blocked 1 user." in response.content.decode()
     assert not get_user_model().objects.filter(pk__in=selected, is_active=True).exists()
-    assert block_events == [(one, it, signals.account_blocked)]
+    assert block_events == [(one, it, signals.user_blocked)]
 
     response = it_client.post(
-        changelist, {"action": "unblock_accounts", "_selected_action": selected}, follow=True
+        changelist, {"action": "unblock_users", "_selected_action": selected}, follow=True
     )
 
     assert "Unblocked 2 users." in response.content.decode()
@@ -510,7 +510,7 @@ def test_it_blocks_and_unblocks_accounts_from_the_changelist(it_client, it, bloc
 
 
 def test_it_invites_a_new_app_admin_from_the_add_page_with_no_password(it_client, it, group_events):
-    add = reverse("admin:testapp_account_add")
+    add = reverse("admin:testapp_user_add")
     response = it_client.get(add)
 
     assert list(response.context["adminform"].form.fields) == ["email", "groups"]
@@ -530,10 +530,10 @@ def test_it_invites_a_new_app_admin_from_the_add_page_with_no_password(it_client
 
 
 def test_inviting_an_existing_email_is_a_form_error(it_client):
-    services.invite_account("jane.doe@example.org", ["viewer"])
+    services.invite_user("jane.doe@example.org", ["viewer"])
 
     response = it_client.post(
-        reverse("admin:testapp_account_add"),
+        reverse("admin:testapp_user_add"),
         {"email": "JANE.DOE@example.org", "groups": group_pks("viewer")},
     )
 
@@ -544,7 +544,7 @@ def test_inviting_an_existing_email_is_a_form_error(it_client):
 
 @override_settings(ENTRA_STAFF=variants.INVITE_ONLY_EXCLUSIVE)
 def test_an_exclusive_invite_needs_exactly_one_access_group(it_client):
-    add = reverse("admin:testapp_account_add")
+    add = reverse("admin:testapp_user_add")
 
     response = it_client.post(add, {"email": "new@example.org"})
 
@@ -556,8 +556,8 @@ def test_an_exclusive_invite_needs_exactly_one_access_group(it_client):
     assert held(get_user_model().objects.get(email="new@example.org")) == {"editor"}
 
 
-def test_clearing_an_account_with_no_second_step_changes_nothing(account, sent):
-    assert services.clear_authenticators(account) is False
+def test_clearing_an_user_with_no_second_step_changes_nothing(user, sent):
+    assert services.clear_authenticators(user) is False
     assert sent == []
 
 

@@ -23,55 +23,55 @@ NEW_PASSWORD = "quiet meadow ladder seven"
 
 
 @pytest.fixture
-def temp_password_account():
-    account = get_user_model().objects.create_user("jane.doe@example.org")
-    services.set_temporary_password(account, TEMP_PASSWORD)
-    return account
+def temp_password_user():
+    user = get_user_model().objects.create_user("jane.doe@example.org")
+    services.set_temporary_password(user, TEMP_PASSWORD)
+    return user
 
 
 @pytest.fixture
-def second_step(temp_password_account):
-    TOTP.activate(temp_password_account, generate_totp_secret())
-    RecoveryCodes.activate(temp_password_account)
-    return temp_password_account
+def second_step(temp_password_user):
+    TOTP.activate(temp_password_user, generate_totp_secret())
+    RecoveryCodes.activate(temp_password_user)
+    return temp_password_user
 
 
 def test_set_temporary_password_sets_the_password_and_the_flag_together(
     temporary_password_events,
 ):
-    account = get_user_model().objects.create_user("jane.doe@example.org")
+    user = get_user_model().objects.create_user("jane.doe@example.org")
     it = get_user_model().objects.create_superuser("it@example.org", PASSWORD)
 
-    services.set_temporary_password(account, TEMP_PASSWORD, acting_account=it)
+    services.set_temporary_password(user, TEMP_PASSWORD, acting_user=it)
 
-    account.refresh_from_db()
-    assert account.check_password(TEMP_PASSWORD)
-    assert account.must_replace_password
-    assert [(event["account"], event["acting_account"]) for event in temporary_password_events] == [
-        (account, it)
+    user.refresh_from_db()
+    assert user.check_password(TEMP_PASSWORD)
+    assert user.must_replace_password
+    assert [(event["user"], event["acting_user"]) for event in temporary_password_events] == [
+        (user, it)
     ]
 
 
-def test_set_temporary_password_refuses_an_account_with_a_microsoft_link(
+def test_set_temporary_password_refuses_an_user_with_a_microsoft_link(
     microsoft, client, temporary_password_events
 ):
-    account = get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
-    microsoft.sign_in(client, email=account.email)
-    account.refresh_from_db()
+    user = get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
+    microsoft.sign_in(client, email=user.email)
+    user.refresh_from_db()
 
     with pytest.raises(StaffError) as refused:
-        services.set_temporary_password(account, TEMP_PASSWORD)
+        services.set_temporary_password(user, TEMP_PASSWORD)
 
     assert refused.value.code == ErrorCode.MICROSOFT_LINKED
-    account.refresh_from_db()
-    assert not account.has_usable_password()
-    assert not account.must_replace_password
+    user.refresh_from_db()
+    assert not user.has_usable_password()
+    assert not user.must_replace_password
     assert temporary_password_events == []
 
 
 @pytest.mark.usefixtures("second_step")
-def test_a_temporary_password_is_replaced_after_the_second_step(client, temp_password_account):
-    response = sign_in(client, temp_password_account.email, TEMP_PASSWORD)
+def test_a_temporary_password_is_replaced_after_the_second_step(client, temp_password_user):
+    response = sign_in(client, temp_password_user.email, TEMP_PASSWORD)
 
     assert response.status_code == 401
     assert {
@@ -83,7 +83,7 @@ def test_a_temporary_password_is_replaced_after_the_second_step(client, temp_pas
 
     response = client.post(
         f"{API}/auth/2fa/authenticate",
-        {"code": totp_code(totp_secret_of(temp_password_account))},
+        {"code": totp_code(totp_secret_of(temp_password_user))},
         content_type="application/json",
     )
 
@@ -98,17 +98,17 @@ def test_a_temporary_password_is_replaced_after_the_second_step(client, temp_pas
     )
 
     assert response.status_code == 200
-    assert response.json()["data"]["user"]["email"] == temp_password_account.email
+    assert response.json()["data"]["user"]["email"] == temp_password_user.email
     assert is_signed_in(client)
-    temp_password_account.refresh_from_db()
-    assert not temp_password_account.must_replace_password
-    assert temp_password_account.check_password(NEW_PASSWORD)
+    temp_password_user.refresh_from_db()
+    assert not temp_password_user.must_replace_password
+    assert temp_password_user.check_password(NEW_PASSWORD)
 
 
 def test_second_step_set_up_comes_before_replacing_the_temporary_password(
-    client, temp_password_account
+    client, temp_password_user
 ):
-    response = sign_in(client, temp_password_account.email, TEMP_PASSWORD)
+    response = sign_in(client, temp_password_user.email, TEMP_PASSWORD)
 
     assert response.status_code == 401
     assert {"id": "second_step_setup", "is_pending": True} in response.json()["data"]["flows"]
@@ -135,11 +135,11 @@ def test_second_step_set_up_comes_before_replacing_the_temporary_password(
 
 
 @pytest.mark.usefixtures("second_step")
-def test_the_new_password_must_pass_the_app_s_password_rules(client, temp_password_account):
-    sign_in(client, temp_password_account.email, TEMP_PASSWORD)
+def test_the_new_password_must_pass_the_app_s_password_rules(client, temp_password_user):
+    sign_in(client, temp_password_user.email, TEMP_PASSWORD)
     client.post(
         f"{API}/auth/2fa/authenticate",
-        {"code": totp_code(totp_secret_of(temp_password_account))},
+        {"code": totp_code(totp_secret_of(temp_password_user))},
         content_type="application/json",
     )
 
@@ -152,8 +152,8 @@ def test_the_new_password_must_pass_the_app_s_password_rules(client, temp_passwo
     assert response.status_code == 400
     assert response.json()["errors"][0]["param"] == "new_password"
     assert not is_signed_in(client)
-    temp_password_account.refresh_from_db()
-    assert temp_password_account.must_replace_password
+    temp_password_user.refresh_from_db()
+    assert temp_password_user.must_replace_password
 
     response = client.post(
         f"{API}/auth/password/replace",
@@ -166,12 +166,12 @@ def test_the_new_password_must_pass_the_app_s_password_rules(client, temp_passwo
 
 
 def test_a_microsoft_sign_in_is_never_asked_to_replace_a_password(
-    client, microsoft, temp_password_account
+    client, microsoft, temp_password_user
 ):
-    response = microsoft.sign_in(client, email=temp_password_account.email)
+    response = microsoft.sign_in(client, email=temp_password_user.email)
 
     assert response.status_code == 302
-    temp_password_account.refresh_from_db()
-    assert not temp_password_account.has_usable_password()
-    assert temp_password_account.must_replace_password
+    temp_password_user.refresh_from_db()
+    assert not temp_password_user.has_usable_password()
+    assert temp_password_user.must_replace_password
     assert is_signed_in(client)

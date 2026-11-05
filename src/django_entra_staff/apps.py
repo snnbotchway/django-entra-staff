@@ -34,7 +34,7 @@ def refuse_for_microsoft_linked(view):
     """Refuse the view to anyone with a Microsoft link.
 
     Django's admin password change uses its own form, not the package's
-    password check, so without this a linked Account that somehow has a
+    password check, so without this a linked User that somehow has a
     password could choose a new one, against the leaver rule (ADR 0002).
     """
 
