@@ -284,11 +284,12 @@ All text the package shows goes through Django translation, and no wording names
 
 0.2 renames the package's "Account" to "User", to match Django. Nothing is kept under the old names, so rename them in your App:
 
-- `AbstractAccount` → `AbstractUser`, `AccountManager` → `UserManager`, `AccountAdmin` → `UserAdmin`.
+- `models.AbstractAccount` → `AbstractUser`, `AccountManager` → `UserManager`.
 - **Your migrations.** The migration that created your User imports `django_entra_staff.models.AccountManager`; change it to `UserManager`, or the migration fails to import.
-- Service functions: `invite_account`, `block_account`, `unblock_account` → `invite_user`, `block_user`, `unblock_user`, and `acting_account=` → `acting_user=`.
-- Signals: `account_signed_up_open_to_staff`, `account_blocked`, `account_unblocked` → `user_signed_up_open_to_staff`, `user_blocked`, `user_unblocked`, and receivers get `user=` instead of `account=`.
-- Error codes: `account_blocked`, `account_already_linked`, `account_exists` → `user_blocked`, `user_already_linked`, `user_exists`. Update a frontend that matches on them.
+- Admin: `AccountAdmin` → `UserAdmin`, `AccountChangeForm` → `UserChangeForm`, and the actions `block_accounts`, `unblock_accounts` → `block_users`, `unblock_users`. An overridden Temporary password template gets `users` instead of `accounts`.
+- Service functions: `invite_account`, `block_account`, `unblock_account` → `invite_user`, `block_user`, `unblock_user`. Every service function's `account` argument is now `user`, and `acting_account=` is `acting_user=`.
+- Signals: `account_signed_up_open_to_staff`, `account_blocked`, `account_unblocked` → `user_signed_up_open_to_staff`, `user_blocked`, `user_unblocked`. Every signal now sends `user=` and `acting_user=` instead of `account=` and `acting_account=`, so check receivers that name them.
+- Error codes: `ErrorCode.ACCOUNT_EXISTS`, `ACCOUNT_BLOCKED`, `ACCOUNT_ALREADY_LINKED` → `USER_EXISTS`, `USER_BLOCKED`, `USER_ALREADY_LINKED`, and their values `account_exists`, `account_blocked`, `account_already_linked` → `user_exists`, `user_blocked`, `user_already_linked`. Update a frontend that matches on them.
 
 ## Development
 
