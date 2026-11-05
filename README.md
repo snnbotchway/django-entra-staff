@@ -181,7 +181,7 @@ from .models import User
 admin.site.register(User, UserAdmin)
 ```
 
-The package's `UserAdmin` is Django's `UserAdmin` fitted to the package's rules, so it looks and works like the user admin IT already knows. The list shows email, Access groups, Microsoft link, password status, Second step status, Active and last sign-in, with Django's filters (Django admin access, superuser, Active, groups) and search by email. The change page keeps `UserAdmin`'s sections (Permissions, Important dates) and adds a read-only Sign-in section: Microsoft link, password status and Second step status. The email is read-only once the User exists. The admin labels the model "user" and "users", as Django does; to use another name, set `verbose_name` and `verbose_name_plural` in your User's `Meta`.
+The package's `UserAdmin` is Django's `django.contrib.auth.admin.UserAdmin` fitted to the package's rules, so it looks and works like the user admin IT already knows. The list shows email, Access groups, Microsoft link, password status, Second step status, Active and last sign-in, with Django's filters (Django admin access, superuser, Active, groups) and search by email. The change page keeps `UserAdmin`'s sections (Permissions, Important dates) and adds a read-only Sign-in section: Microsoft link, password status and Second step status. The email is read-only once the User exists. The admin labels the model "user" and "users", as Django does; to use another name, set `verbose_name` and `verbose_name_plural` in your User's `Meta`.
 
 There is no password anywhere on it (ADR 0002): no password field, no change-password link, and the `<id>/password/` page refuses. Django's own "Change password" page in the admin header refuses anyone with a Microsoft link. What IT changes goes through the service functions with the signed-in User as `acting_user`, so every rule and signal applies:
 
@@ -276,9 +276,19 @@ The package does not call the browser. The App's frontend uses the browser's Web
 
 All text the package shows goes through Django translation, and no wording names an organisation.
 
-- **Error messages** (such as "Use Microsoft sign-in for this user."): translate them in your own locale catalog (listed in `LOCALE_PATHS`), or subclass the adapters and change `error_messages`.
+- **Error messages** (such as "Use Microsoft sign-in for this account."): translate them in your own locale catalog (listed in `LOCALE_PATHS`), or subclass the adapters and change `error_messages`.
 - **Emails** (Password reset, and allauth's notices when an authenticator or passkey is added or removed) are allauth's templates, `account/email/*` and `mfa/email/*`. Override one by adding a template with the same name in a template directory listed in `TEMPLATES["DIRS"]`, which Django searches before installed apps.
 - The Temporary password form in the Django admin is the only template the package ships (see above).
+
+## Upgrading from 0.1
+
+0.2 renames the package's "Account" to "User", to match Django. Nothing is kept under the old names, so rename them in your App:
+
+- `AbstractAccount` → `AbstractUser`, `AccountManager` → `UserManager`, `AccountAdmin` → `UserAdmin`.
+- **Your migrations.** The migration that created your User imports `django_entra_staff.models.AccountManager`; change it to `UserManager`, or the migration fails to import.
+- Service functions: `invite_account`, `block_account`, `unblock_account` → `invite_user`, `block_user`, `unblock_user`, and `acting_account=` → `acting_user=`.
+- Signals: `account_signed_up_open_to_staff`, `account_blocked`, `account_unblocked` → `user_signed_up_open_to_staff`, `user_blocked`, `user_unblocked`, and receivers get `user=` instead of `account=`.
+- Error codes: `account_blocked`, `account_already_linked`, `account_exists` → `user_blocked`, `user_already_linked`, `user_exists`. Update a frontend that matches on them.
 
 ## Development
 

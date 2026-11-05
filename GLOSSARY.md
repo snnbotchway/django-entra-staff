@@ -10,7 +10,7 @@ _Avoid_: Project, service, portal
 
 **User**:
 One person's record in one App, identified by email. A person who uses three Apps has three Users.
-_Avoid_: Account, profile, login
+_Avoid_: Account, profile, login (allauth's own names, such as its account adapters and `SocialAccount`, keep "account")
 
 **Microsoft sign-in**:
 Signing in to an App with the person's work account in the organisation's Microsoft Entra tenant.
