@@ -50,7 +50,7 @@ def test_a_linked_user_cannot_make_another_email_its_primary(microsoft, client, 
     assert user.email == "jane.doe@example.org"
 
 
-def test_an_user_with_a_password_can_still_add_an_email(client, user):
+def test_a_user_with_a_password_can_still_add_an_email(client, user):
     client.force_login(user)
 
     response = post_email(client, "jane@example.com")

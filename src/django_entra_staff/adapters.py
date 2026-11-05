@@ -22,8 +22,8 @@ def dotted_path(cls) -> str:
 class AccountAdapter(DefaultAccountAdapter):
     error_messages = {
         **DefaultAccountAdapter.error_messages,
-        Code.USE_MICROSOFT_SIGNIN: _("Use Microsoft sign-in for this user."),
-        Code.EMAIL_CHANGE_NOT_SUPPORTED: _("The email address of this user cannot be changed."),
+        Code.USE_MICROSOFT_SIGNIN: _("Use Microsoft sign-in for this account."),
+        Code.EMAIL_CHANGE_NOT_SUPPORTED: _("The email address of this account cannot be changed."),
     }
 
     def is_open_for_signup(self, request):
@@ -88,11 +88,11 @@ class MFAAdapter(DefaultMFAAdapter):
 class SocialAccountAdapter(DefaultSocialAccountAdapter):
     error_messages = {
         **DefaultSocialAccountAdapter.error_messages,
-        Code.INVITE_ONLY: _("There is no user for this email address. Ask for access."),
+        Code.INVITE_ONLY: _("There is no account for this email address. Ask for access."),
         Code.NO_WORK_EMAIL: _(
             "Your Microsoft account has no email address. Ask IT to add one, then try again."
         ),
-        Code.USER_BLOCKED: _("This user is blocked. Ask for access."),
+        Code.USER_BLOCKED: _("This account is blocked. Ask for access."),
         Code.USER_ALREADY_LINKED: _(
             "This email address is already linked to another Microsoft account."
         ),

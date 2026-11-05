@@ -36,14 +36,14 @@ def user():
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
 
 
-def test_a_reset_email_is_sent_to_an_user_with_a_password(client, user):
+def test_a_reset_email_is_sent_to_a_user_with_a_password(client, user):
     response = request_reset(client, user.email)
 
     assert response.status_code == 200
     assert [message.to for message in mail.outbox] == [[user.email]]
 
 
-def test_no_reset_email_for_an_user_without_a_password(client):
+def test_no_reset_email_for_a_user_without_a_password(client):
     get_user_model().objects.create_user("jane.doe@example.org")
 
     response = request_reset(client, "jane.doe@example.org")

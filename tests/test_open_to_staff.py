@@ -36,7 +36,7 @@ def group_names(user):
 
 
 @pytest.mark.parametrize("variant", OPEN_VARIANTS)
-def test_first_sign_in_makes_an_user_with_the_lowest_access_group(
+def test_first_sign_in_makes_a_user_with_the_lowest_access_group(
     microsoft, client, signup_events, link_made_events, variant
 ):
     with override_settings(ENTRA_STAFF=variant):

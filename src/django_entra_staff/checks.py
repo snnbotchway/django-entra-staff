@@ -145,7 +145,7 @@ def check_settings(app_configs, **kwargs):
         errors.append(
             Error(
                 "AUTH_USER_MODEL must subclass django_entra_staff.models.AbstractUser.",
-                id=CheckId.USER_MODEL_NOT_A_PACKAGE_USER.value,
+                id=CheckId.USER_MODEL_NOT_THE_PACKAGES.value,
             )
         )
 
