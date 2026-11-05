@@ -46,8 +46,6 @@ def test_microsoft_sign_in_needs_the_tenant_id():
         (staff(GROUP_MODE="sticky"), "entra_staff.E005"),
         (staff(ACCESS_GROUPS=[]), "entra_staff.E006"),
         (staff(ACCESS_GROUPS=["viewer", "viewer"]), "entra_staff.E006"),
-        (staff(APP_ADMIN_GROUP="boss"), "entra_staff.E007"),
-        (staff(APP_ADMIN_GROUP=None), "entra_staff.E007"),
         (staff(LOWEST_ACCESS_GROUP="guest"), "entra_staff.E008"),
         (staff(SIGN_UP_RULE="open_to_staff", LOWEST_ACCESS_GROUP=None), "entra_staff.E009"),
     ],

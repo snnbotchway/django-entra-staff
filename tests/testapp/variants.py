@@ -6,7 +6,6 @@ INVITE_ONLY_ADDING = {
     "ACCESS_GROUPS": ["viewer", "editor", "manager"],
     "GROUP_MODE": "adding",
     "LOWEST_ACCESS_GROUP": "viewer",
-    "APP_ADMIN_GROUP": "manager",
 }
 
 INVITE_ONLY_EXCLUSIVE = {**INVITE_ONLY_ADDING, "GROUP_MODE": "exclusive"}

@@ -96,7 +96,7 @@ The package names no organisation, wording or group; each App supplies those in 
 51. As an App developer, I want to declare my App's Access groups in settings, so that the groups exist the same way in every environment.
 52. As an App developer, I want to say whether my Access groups add up or are exclusive, so that the package enforces the right shape.
 53. As an App developer, I want to name which Access group is the lowest access, so that Open to staff sign-ups get it.
-54. As an App developer, I want to name which Access group is App admin, so that the package knows who may manage people.
+54. (Removed: the package no longer needs to know which Access group is App admin; each App decides in its own screens who may manage people.)
 55. As an App admin, I want to change a person's Access groups in my App's screens, so that I do not need IT.
 56. As an App admin in an App with exclusive Access groups, I want setting a person's group to replace their old one, so that they never hold two.
 57. As an App developer, I want an attempt to give an Account two exclusive Access groups, or a group the App did not declare, to be refused, so that bad data never gets saved.
@@ -120,7 +120,7 @@ The package names no organisation, wording or group; each App supplies those in 
 
 70. As an App developer, I want to install the package, add it to settings, and set a tenant and client, so that sign-in works without writing auth code.
 71. As an App developer with a single-page frontend, I want to use allauth's headless browser API paths and error shape, so that I can use allauth's documented client flows.
-72. As an App developer, I want a clear error at start-up if the settings are inconsistent (an undeclared lowest access group, a missing App admin group, Open to staff with no lowest access), so that mistakes show before users find them.
+72. As an App developer, I want a clear error at start-up if the settings are inconsistent (an undeclared lowest access group, Open to staff with no lowest access), so that mistakes show before users find them.
 73. As an App developer, I want signals for Microsoft link made, Account signed up through Open to staff, Access groups changed, Account blocked or unblocked, and Temporary password set, so that my App can audit and notify.
 74. As an App developer, I want service functions for every Account change the package allows, so that my screens, commands and tests use the same rules.
 75. As an App developer, I want the on-screen wording and email texts to be mine to override, so that my App speaks in my organisation's words.
@@ -129,7 +129,7 @@ The package names no organisation, wording or group; each App supplies those in 
 ## Implementation Decisions
 
 - **Shape**: a thin policy layer on django-allauth (core accounts, socialaccount with the Microsoft provider, mfa, headless). No sign-in protocol, token, hashing, TOTP or rate-limit code of our own (ADR 0001).
-- **Configuration**: one settings dict for the package, holding: Entra tenant ID, the Sign-up rule (`invite_only` default, or `open_to_staff`), the list of Access groups, whether they add up or are exclusive, the lowest access group, and the App admin group. The Microsoft client ID and secret come from allauth's own provider settings. A Django system check validates the dict at start-up. The Sign-up rule and group modes are each defined once as `TextChoices`/`StrEnum`.
+- **Configuration**: one settings dict for the package, holding: Entra tenant ID, the Sign-up rule (`invite_only` default, or `open_to_staff`), the list of Access groups, whether they add up or are exclusive, and the lowest access group. The Microsoft client ID and secret come from allauth's own provider settings. A Django system check validates the dict at start-up. The Sign-up rule and group modes are each defined once as `TextChoices`/`StrEnum`.
 - **Account model**: the package ships an abstract Account base (email as the identifier, no username, case-insensitive unique email) and a manager. Each App defines a concrete subclass and points its user-model setting at it, so it can add fields. Blocked means inactive.
 - **Microsoft link**: allauth's social account row, not a field on the Account. Linking is done in the package's social account adapter before allauth's own login: check the token's tenant against the configured tenant, and refuse guests of the tenant by the id_token's `idp` claim (present and different from the issuer for B2B and personal-account guests), with the same generic error as a wrong tenant; if a link for this Microsoft person exists, use it and ignore email; otherwise match a single Account by work email, case-insensitive, that has no Microsoft link, make the link and remove the password (set unusable) in the same transaction. A match that is already linked to another Microsoft person is refused. Allauth's automatic email-based connect is not relied on; the adapter owns this rule.
 - **Sign-up rule**: the social account adapter answers whether sign-up is open. Invite only refuses with a distinct error code. Open to staff creates the Account with only the lowest access group and sends the sign-up signal. Password-based sign-up is always closed.

@@ -145,12 +145,6 @@ def test_exclusive_mode_refuses_anything_but_one_group(admin_account, groups):
     assert refused.value.code == ErrorCode.EXCLUSIVE_NEEDS_ONE_GROUP
 
 
-def test_the_only_app_admin_can_lose_the_app_admin_group(admin_account):
-    services.set_access_groups(admin_account, ["viewer"], acting_account=admin_account)
-
-    assert group_names(admin_account) == {"viewer"}
-
-
 def test_block_and_unblock_flip_the_account_and_send_their_signals(sent, admin_account):
     person = services.invite_account("p@example.com", ["viewer"])
     sent.clear()

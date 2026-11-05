@@ -33,7 +33,6 @@ class SettingKey(StrEnum):
     ACCESS_GROUPS = "ACCESS_GROUPS"
     GROUP_MODE = "GROUP_MODE"
     LOWEST_ACCESS_GROUP = "LOWEST_ACCESS_GROUP"
-    APP_ADMIN_GROUP = "APP_ADMIN_GROUP"
 
 
 DEFAULTS = {
@@ -49,7 +48,6 @@ class CheckId(StrEnum):
     BAD_SIGN_UP_RULE = "entra_staff.E004"
     BAD_GROUP_MODE = "entra_staff.E005"
     BAD_ACCESS_GROUPS = "entra_staff.E006"
-    APP_ADMIN_GROUP_NOT_DECLARED = "entra_staff.E007"
     LOWEST_ACCESS_GROUP_NOT_DECLARED = "entra_staff.E008"
     OPEN_TO_STAFF_NEEDS_LOWEST_ACCESS_GROUP = "entra_staff.E009"
     USER_MODEL_NOT_AN_ACCOUNT = "entra_staff.E010"
@@ -87,7 +85,6 @@ class StaffSettings:
     access_groups: tuple[str, ...]
     group_mode: GroupMode
     lowest_access_group: str | None
-    app_admin_group: str
 
 
 MICROSOFT_NEEDS_TENANT_ID_MESSAGE = (
@@ -157,16 +154,6 @@ def validate(raw: object) -> list[Problem]:
         return problems
     declared = list(groups)
 
-    app_admin_group = raw.get(SettingKey.APP_ADMIN_GROUP)
-    if app_admin_group not in declared:
-        problems.append(
-            Problem(
-                CheckId.APP_ADMIN_GROUP_NOT_DECLARED,
-                f"{SettingKey.APP_ADMIN_GROUP} {app_admin_group!r} must be one of"
-                f" {SettingKey.ACCESS_GROUPS}.",
-            )
-        )
-
     lowest = raw.get(SettingKey.LOWEST_ACCESS_GROUP)
     if lowest is None:
         if sign_up_rule == SignUpRule.OPEN_TO_STAFF:
@@ -201,5 +188,4 @@ def get_settings() -> StaffSettings:
         access_groups=tuple(raw[SettingKey.ACCESS_GROUPS]),
         group_mode=GroupMode(raw.get(SettingKey.GROUP_MODE, DEFAULTS[SettingKey.GROUP_MODE])),
         lowest_access_group=raw.get(SettingKey.LOWEST_ACCESS_GROUP),
-        app_admin_group=raw[SettingKey.APP_ADMIN_GROUP],
     )

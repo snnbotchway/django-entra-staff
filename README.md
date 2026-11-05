@@ -95,7 +95,6 @@ ENTRA_STAFF = {
     "ACCESS_GROUPS": ["viewer", "editor", "manager"],
     "GROUP_MODE": "adding",
     "LOWEST_ACCESS_GROUP": "viewer",
-    "APP_ADMIN_GROUP": "manager",
 }
 ```
 
@@ -106,7 +105,6 @@ ENTRA_STAFF = {
 | `ACCESS_GROUPS` | Required. The App's Access groups, created as Django groups after every `migrate`. |
 | `GROUP_MODE` | `"adding"` (default): an Account may hold several Access groups. `"exclusive"`: exactly one. |
 | `LOWEST_ACCESS_GROUP` | The group Open to staff sign-ups get. Required for `open_to_staff`. |
-| `APP_ADMIN_GROUP` | Required. The group whose members manage people. |
 
 The group names are yours; the package names none. Unknown keys are refused.
 
