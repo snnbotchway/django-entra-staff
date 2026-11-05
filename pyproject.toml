@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "django-entra-staff"
-version = "0.2.0"
+version = "0.3.0"
 description = "Staff sign-in for internal Django apps: Microsoft Entra, passwords with a Second step, and access groups, on django-allauth."
 readme = "README.md"
 requires-python = ">=3.12"
