@@ -2,11 +2,11 @@
 
 Sign-in for internal Django apps whose staff use Microsoft Entra: Microsoft sign-in for one tenant, Password sign-in with a required authenticator code for everyone else, and access through Django groups. Built on [django-allauth](https://allauth.org).
 
-The rules are in [`GLOSSARY.md`](GLOSSARY.md) (the words this README uses, such as Account and Second step) and [`docs/adr/`](docs/adr/). In short:
+The rules are in [`GLOSSARY.md`](GLOSSARY.md) (the words this README uses, such as User and Second step) and [`docs/adr/`](docs/adr/). In short:
 
-- A person's first Microsoft sign-in links their Account by work email. From then on the link is the identity, the password is removed and Password sign-in is refused for good ([ADR 0002](docs/adr/0002-no-password-once-microsoft-linked.md)).
+- A person's first Microsoft sign-in links their User by work email. From then on the link is the identity, the password is removed and Password sign-in is refused for good ([ADR 0002](docs/adr/0002-no-password-once-microsoft-linked.md)).
 - Password sign-in always ends with a Second step: an authenticator code, a passkey or a recovery code. A passkey never signs anyone in on its own.
-- Nobody creates an Account with a password. People get in by invitation, or by Microsoft sign-in if the App is Open to staff.
+- Nobody creates a User with a password. People get in by invitation, or by Microsoft sign-in if the App is Open to staff.
 - The package ships no sign-in screens. The App builds them on allauth's headless API.
 
 ## Install
@@ -33,31 +33,31 @@ A compromised release would run inside every App, so lock it:
 
 The test App in [`tests/testapp/`](tests/testapp/) is a complete, working example of everything below.
 
-### The Account model
+### The User model
 
-Define a concrete Account in your App, with any fields you like, and point `AUTH_USER_MODEL` at it. Email is the identifier (no username) and is unique regardless of letter case. A blocked Account is an inactive one.
+Define a concrete User in your App, with any fields you like, and point `AUTH_USER_MODEL` at it. Email is the identifier (no username) and is unique regardless of letter case. A blocked User is an inactive one.
 
 ```python
-# accounts/models.py
-from django_entra_staff.models import AbstractAccount
+# users/models.py
+from django_entra_staff.models import AbstractUser
 
 
-class Account(AbstractAccount):
+class User(AbstractUser):
     department = models.CharField(max_length=100, blank=True)
 ```
 
 ```python
 # settings.py
-AUTH_USER_MODEL = "accounts.Account"
+AUTH_USER_MODEL = "users.User"
 ```
 
-If you give your model its own `Meta`, extend `AbstractAccount.Meta` so the case-insensitive email constraint stays. Run `makemigrations` and `migrate` as usual; `migrate` also creates the Access groups you declare below.
+If you give your model its own `Meta`, extend `AbstractUser.Meta` so the case-insensitive email constraint stays. Run `makemigrations` and `migrate` as usual; `migrate` also creates the Access groups you declare below.
 
 ### Installed apps, middleware, URLs
 
 ```python
 INSTALLED_APPS = [
-    # ...Django's apps, then your Account app, then:
+    # ...Django's apps, then your User app, then:
     "allauth",
     "allauth.account",
     "allauth.mfa",
@@ -101,9 +101,9 @@ ENTRA_STAFF = {
 | Key | Meaning |
 |---|---|
 | `TENANT_ID` | The one Entra tenant allowed to sign in. Required once the Microsoft provider is installed; leave it out for Password sign-in only. |
-| `SIGN_UP_RULE` | `"invite_only"` (default): a Microsoft person with no Account is refused. `"open_to_staff"`: they get an Account with only the lowest access group. |
+| `SIGN_UP_RULE` | `"invite_only"` (default): a Microsoft person with no User is refused. `"open_to_staff"`: they get a User with only the lowest access group. |
 | `ACCESS_GROUPS` | Required. The App's Access groups, created as Django groups after every `migrate`. |
-| `GROUP_MODE` | `"adding"` (default): an Account may hold several Access groups. `"exclusive"`: exactly one. |
+| `GROUP_MODE` | `"adding"` (default): a User may hold several Access groups. `"exclusive"`: exactly one. |
 | `LOWEST_ACCESS_GROUP` | The group Open to staff sign-ups get. Required for `open_to_staff`. |
 
 The group names are yours; the package names none. Unknown keys are refused.
@@ -123,7 +123,7 @@ MFA_SUPPORTED_TYPES = ["recovery_codes", "totp", "webauthn"]
 HEADLESS_ONLY = True
 ```
 
-The adapters may be subclassed. Leave `MFA_PASSKEY_LOGIN_ENABLED`, `MFA_PASSKEY_SIGNUP_ENABLED`, `ACCOUNT_LOGIN_BY_CODE_ENABLED` and `ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED` off (their default): each is a way in or a way to add a password that skips the package's rules. Leave allauth's email authentication (`SOCIALACCOUNT_EMAIL_AUTHENTICATION`, `SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT`, a provider's `EMAIL_AUTHENTICATION`) and `MFA_TRUST_ENABLED` off, and `ACCOUNT_PREVENT_ENUMERATION` on. Mount `django_entra_staff.urls` rather than allauth's headless URLs alone, so the package's guarded `account/email` and authenticator views answer. Through that view an Account with a Microsoft link cannot add an address or change its primary one (`email_change_not_supported`), and no Account can make an unverified address primary (`unverified_primary_email`): the Account's email is what a first Microsoft sign-in matches, so an unverified colleague's address would otherwise send that colleague's sign-in into the wrong Account. `HEADLESS_ONLY` must be `True`, because allauth's own pages skip the package's endpoints. Allow no other backend in `AUTHENTICATION_BACKENDS` than that one or a subclass of it: Django's `ModelBackend` and anything built on it checks passwords without refusing linked Accounts. The check also refuses permission-only backends such as django-rules or django-guardian: Django calls every backend's `authenticate`, so each one is a password path the package cannot guard. Leave `ACCOUNT_EMAIL_VERIFICATION_SUPPORTS_CHANGE` off: a person waiting to verify their email at sign-in could change it, unverified, to a colleague's. Install no allauth provider app besides the package's Microsoft one: the package treats every social account as the Microsoft link.
+The adapters may be subclassed. Leave `MFA_PASSKEY_LOGIN_ENABLED`, `MFA_PASSKEY_SIGNUP_ENABLED`, `ACCOUNT_LOGIN_BY_CODE_ENABLED` and `ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED` off (their default): each is a way in or a way to add a password that skips the package's rules. Leave allauth's email authentication (`SOCIALACCOUNT_EMAIL_AUTHENTICATION`, `SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT`, a provider's `EMAIL_AUTHENTICATION`) and `MFA_TRUST_ENABLED` off, and `ACCOUNT_PREVENT_ENUMERATION` on. Mount `django_entra_staff.urls` rather than allauth's headless URLs alone, so the package's guarded `account/email` and authenticator views answer. Through that view a User with a Microsoft link cannot add an address or change its primary one (`email_change_not_supported`), and no User can make an unverified address primary (`unverified_primary_email`): the User's email is what a first Microsoft sign-in matches, so an unverified colleague's address would otherwise send that colleague's sign-in into the wrong User. `HEADLESS_ONLY` must be `True`, because allauth's own pages skip the package's endpoints. Allow no other backend in `AUTHENTICATION_BACKENDS` than that one or a subclass of it: Django's `ModelBackend` and anything built on it checks passwords without refusing linked Users. The check also refuses permission-only backends such as django-rules or django-guardian: Django calls every backend's `authenticate`, so each one is a password path the package cannot guard. Leave `ACCOUNT_EMAIL_VERIFICATION_SUPPORTS_CHANGE` off: a person waiting to verify their email at sign-in could change it, unverified, to a colleague's. Install no allauth provider app besides the package's Microsoft one: the package treats every social account as the Microsoft link.
 
 A headless-only App has no allauth pages, so tell allauth and Django where the App's own frontend lives. All three `HEADLESS_FRONTEND_URLS` entries are needed, and `LOGIN_URL` is where the Django admin sends people to sign in:
 
@@ -152,17 +152,17 @@ Also needed:
    ```
 
 3. The tenant comes only from `ENTRA_STAFF["TENANT_ID"]`. Do not set the provider's own `TENANT` setting; it is ignored.
-4. Leave out the app's `provider_id`, in settings and in a `SocialApp` row. The system check sees only the settings, not rows in the database, so check those yourself. Microsoft is the only provider the package supports, so every social account an Account has counts as its Microsoft link; a custom `provider_id` would only confuse the sign-in URLs.
+4. Leave out the app's `provider_id`, in settings and in a `SocialApp` row. The system check sees only the settings, not rows in the database, so check those yourself. Microsoft is the only provider the package supports, so every social account a User has counts as its Microsoft link; a custom `provider_id` would only confuse the sign-in URLs.
 
-The package checks the token's signature, issuer (which contains the tenant), audience and expiry before it links or signs anyone in. A token from any other tenant is refused. Guests of your tenant (B2B guests from another tenant, or personal Microsoft accounts you invited) are refused too: their token's `idp` claim names their home identity provider instead of your tenant's issuer. Give such people a member account in your tenant, or a password Account.
+The package checks the token's signature, issuer (which contains the tenant), audience and expiry before it links or signs anyone in. A token from any other tenant is refused. Guests of your tenant (B2B guests from another tenant, or personal Microsoft accounts you invited) are refused too: their token's `idp` claim names their home identity provider instead of your tenant's issuer. Give such people a member account in your tenant, or a password User.
 
 Refusals come back to the page named in `socialaccount_login_error` as `?error=<code>&error_process=login`:
 
 | Code | When |
 |---|---|
-| `invite_only` | No Account, and the Sign-up rule is Invite only. |
-| `account_blocked` | The Account is blocked. |
-| `account_already_linked` | The Account with this email is already linked to a different Microsoft person. |
+| `invite_only` | No User, and the Sign-up rule is Invite only. |
+| `user_blocked` | The User is blocked. |
+| `user_already_linked` | The User with this email is already linked to a different Microsoft person. |
 | `no_work_email` | Microsoft gave no email address (Open to staff only). |
 | `connect_not_supported` | Someone asked to connect a Microsoft account by hand. Links are made only at first sign-in. |
 
@@ -170,28 +170,28 @@ Any other failure, such as a token from the wrong tenant or from a guest, comes 
 
 ### Django admin
 
-Register the package's admin page for your Account:
+Register the package's admin page for your User:
 
 ```python
-# accounts/admin.py
+# users/admin.py
 from django.contrib import admin
-from django_entra_staff.admin import AccountAdmin
-from .models import Account
+from django_entra_staff.admin import UserAdmin
+from .models import User
 
-admin.site.register(Account, AccountAdmin)
+admin.site.register(User, UserAdmin)
 ```
 
-`AccountAdmin` is Django's `UserAdmin` fitted to the package's rules, so it looks and works like the user admin IT already knows. The list shows email, Access groups, Microsoft link, password status, Second step status, Active and last sign-in, with Django's filters (Django admin access, superuser, Active, groups) and search by email. The change page keeps `UserAdmin`'s sections (Permissions, Important dates) and adds a read-only Sign-in section: Microsoft link, password status and Second step status. The email is read-only once the Account exists. The admin calls Accounts "users", as Django does; to use another name, set `verbose_name` and `verbose_name_plural` in your Account's `Meta`.
+The package's `UserAdmin` is Django's `UserAdmin` fitted to the package's rules, so it looks and works like the user admin IT already knows. The list shows email, Access groups, Microsoft link, password status, Second step status, Active and last sign-in, with Django's filters (Django admin access, superuser, Active, groups) and search by email. The change page keeps `UserAdmin`'s sections (Permissions, Important dates) and adds a read-only Sign-in section: Microsoft link, password status and Second step status. The email is read-only once the User exists. The admin labels the model "user" and "users", as Django does; to use another name, set `verbose_name` and `verbose_name_plural` in your User's `Meta`.
 
-There is no password anywhere on it (ADR 0002): no password field, no change-password link, and the `<id>/password/` page refuses. Django's own "Change password" page in the admin header refuses anyone with a Microsoft link. What IT changes goes through the service functions with the signed-in Account as `acting_account`, so every rule and signal applies:
+There is no password anywhere on it (ADR 0002): no password field, no change-password link, and the `<id>/password/` page refuses. Django's own "Change password" page in the admin header refuses anyone with a Microsoft link. What IT changes goes through the service functions with the signed-in User as `acting_user`, so every rule and signal applies:
 
-- **Add** invites a person by email with chosen Access groups (`invite_account`). There are no password fields. Creating the first App admin of a new App works this way.
+- **Add** invites a person by email with chosen Access groups (`invite_user`). There are no password fields. Creating the first App admin of a new App works this way.
 - **Access groups** is Django's groups picker, offering only the declared Access groups, and is saved with `set_access_groups`. With exclusive Access groups, choosing anything but one is a form error and nothing is saved. Django groups the App didn't declare are left alone.
-- **Active** unticked blocks the Account (`block_account`); ticked again, it unblocks it (`unblock_account`).
-- **Django admin access** and **superuser status** are the Account's own `is_staff` and `is_superuser`, set only here and never by Access groups.
-- **Actions** block or unblock the selected Accounts, set a Temporary password, clear the Second step, and remove a Microsoft link, next to Django's delete.
+- **Active** unticked blocks the User (`block_user`); ticked again, it unblocks it (`unblock_user`).
+- **Django admin access** and **superuser status** are the User's own `is_staff` and `is_superuser`, set only here and never by Access groups.
+- **Actions** block or unblock the selected Users, set a Temporary password, clear the Second step, and remove a Microsoft link, next to Django's delete.
 
-Subclass `AccountAdmin` to add columns or fields. Override the Temporary password form with a template at `django_entra_staff/set_temporary_password.html`.
+Subclass `UserAdmin` to add columns or fields. Override the Temporary password form with a template at `django_entra_staff/set_temporary_password.html`.
 
 The admin sign-in page is replaced on the default `admin.site`: it sends people to `LOGIN_URL`, so the admin opens only after Microsoft sign-in or password plus Second step. An App with its own `AdminSite` must wrap its `login` the same way:
 
@@ -201,11 +201,11 @@ from allauth.account.decorators import secure_admin_login
 my_site.login = secure_admin_login(my_site.login)
 ```
 
-Being an App admin never grants Django admin access. Only IT and developers hold `is_staff`, set on the Account itself.
+Being an App admin never grants Django admin access. Only IT and developers hold `is_staff`, set on the User itself.
 
 ### System checks
 
-`manage.py check` fails at start-up, before anyone signs in, when the settings above are inconsistent (ids `entra_staff.E001` to `E030`): a bad or incomplete `ENTRA_STAFF`, an `AUTH_USER_MODEL` that is not an Account, the package's adapters or Microsoft provider not in place, `webauthn` missing from `MFA_SUPPORTED_TYPES`, passkey sign-in or sign-up switched on, `HEADLESS_ONLY` off, sign-in or Password reset by emailed code switched on, a backend other than allauth's (or a subclass of it) in `AUTHENTICATION_BACKENDS`, allauth's email authentication or MFA trust switched on, `ACCOUNT_PREVENT_ENUMERATION` off, allauth's own `account/email` or authenticator management views answering instead of the package's, a `provider_id` on the Microsoft app in `SOCIALACCOUNT_PROVIDERS`, changing the email while verifying it at sign-in switched on, or an installed app that brings a sign-in provider other than Microsoft (allauth's own or any other).
+`manage.py check` fails at start-up, before anyone signs in, when the settings above are inconsistent (ids `entra_staff.E001` to `E030`): a bad or incomplete `ENTRA_STAFF`, an `AUTH_USER_MODEL` that is not a User, the package's adapters or Microsoft provider not in place, `webauthn` missing from `MFA_SUPPORTED_TYPES`, passkey sign-in or sign-up switched on, `HEADLESS_ONLY` off, sign-in or Password reset by emailed code switched on, a backend other than allauth's (or a subclass of it) in `AUTHENTICATION_BACKENDS`, allauth's email authentication or MFA trust switched on, `ACCOUNT_PREVENT_ENUMERATION` off, allauth's own `account/email` or authenticator management views answering instead of the package's, a `provider_id` on the Microsoft app in `SOCIALACCOUNT_PROVIDERS`, changing the email while verifying it at sign-in switched on, or an installed app that brings a sign-in provider other than Microsoft (allauth's own or any other).
 
 ## The sign-in API
 
@@ -213,7 +213,7 @@ The App's frontend calls allauth's headless browser API under `/_allauth/browser
 
 | Path | Use |
 |---|---|
-| `POST auth/login` | Password sign-in (email, password). An Account with a Microsoft link gets `use_microsoft_signin`, but only when the password was right; otherwise the ordinary `email_password_mismatch`. |
+| `POST auth/login` | Password sign-in (email, password). A User with a Microsoft link gets `use_microsoft_signin`, but only when the password was right; otherwise the ordinary `email_password_mismatch`. |
 | `POST auth/provider/redirect` | Start Microsoft sign-in (`provider`: `microsoft`, `callback_url`, `process`: `login`), as a form post. |
 | `POST auth/password/request`, `POST auth/password/reset` | Password reset. The request answers the same whether or not the email exists or can be reset. |
 | `POST auth/2fa/authenticate` | Second step with an authenticator code or a recovery code. |
@@ -223,7 +223,7 @@ The App's frontend calls allauth's headless browser API under `/_allauth/browser
 | `POST auth/password/replace` | Replace a Temporary password (`new_password`). |
 | `GET auth/session` | Whether the person is signed in, and which flows are pending. |
 | `account/authenticators/...` | Manage authenticators and passkeys once signed in. Removing the last Second step is refused with `cannot_delete_authenticator`. |
-| `POST account/password/change` | Set or change the password once signed in. Refused with `use_microsoft_signin` for an Account with a Microsoft link, as is completing a Password reset for one. |
+| `POST account/password/change` | Set or change the password once signed in. Refused with `use_microsoft_signin` for a User with a Microsoft link, as is completing a Password reset for one. |
 | `DELETE account/providers` | Refused with `disconnect_not_supported` for the Microsoft link. Only IT removes it, through `remove_microsoft_link`. |
 
 After a correct password the response is `401` with `data.flows` listing what is pending, in this fixed order: `mfa_authenticate` or `second_step_setup`, then `replace_password`. The sign-in is complete only when none is pending. Other endpoints refuse a half-finished sign-in. Microsoft sign-in has none of these steps.
@@ -234,32 +234,32 @@ Use these from the App's own screens, commands and tests, never the models and a
 
 | Function | Does |
 |---|---|
-| `invite_account(email, access_groups, *, acting_account=None)` | Makes an Account with no password; the person then uses Microsoft sign-in. |
-| `set_access_groups(account, access_groups, *, acting_account=None)` | Replaces the Account's Access groups. |
-| `block_account(account, *, acting_account=None)`, `unblock_account(...)` | Stops and restores sign-in. |
-| `set_temporary_password(account, password, *, acting_account=None)` | For the Django admin only. Refused for a linked Account. |
-| `clear_authenticators(account, *, acting_account=None)` | Removes all authenticators, passkeys and recovery codes; returns whether anything was removed, and sends its signal only then. |
-| `remove_microsoft_link(account, *, acting_account=None)` | Lets the next Microsoft sign-in link again. The Account keeps no password. |
-| `has_access_group(account, access_group)` | Whether the Account holds the group; `False` when not signed in. |
-| `has_microsoft_link(account)` | Whether the Account has a Microsoft link, so it can never have a password. |
+| `invite_user(email, access_groups, *, acting_user=None)` | Makes a User with no password; the person then uses Microsoft sign-in. |
+| `set_access_groups(user, access_groups, *, acting_user=None)` | Replaces the User's Access groups. |
+| `block_user(user, *, acting_user=None)`, `unblock_user(...)` | Stops and restores sign-in. |
+| `set_temporary_password(user, password, *, acting_user=None)` | For the Django admin only. Refused for a linked User. |
+| `clear_authenticators(user, *, acting_user=None)` | Removes all authenticators, passkeys and recovery codes; returns whether anything was removed, and sends its signal only then. |
+| `remove_microsoft_link(user, *, acting_user=None)` | Lets the next Microsoft sign-in link again. The User keeps no password. |
+| `has_access_group(user, access_group)` | Whether the User holds the group; `False` when not signed in. |
+| `has_microsoft_link(user)` | Whether the User has a Microsoft link, so it can never have a password. |
 
-Error codes: `undeclared_access_group`, `exclusive_needs_one_group`, `account_exists`, `microsoft_linked`.
+Error codes: `undeclared_access_group`, `exclusive_needs_one_group`, `user_exists`, `microsoft_linked`.
 
 Only `set_temporary_password` takes a password. No function returns password data, and none touches Django admin access.
 
 ## Signals
 
-In `django_entra_staff.signals`. Each is sent with the Account class as `sender`, and `account` and `acting_account` (the Account that made the change, or `None`):
+In `django_entra_staff.signals`. Each is sent with the User class as `sender`, and `user` and `acting_user` (the User that made the change, or `None`):
 
 | Signal | Sent when |
 |---|---|
-| `microsoft_link_made` | A first Microsoft sign-in linked an Account, including one Open to staff has just made. |
-| `account_signed_up_open_to_staff` | Open to staff made an Account. |
+| `microsoft_link_made` | A first Microsoft sign-in linked a User, including one Open to staff has just made. |
+| `user_signed_up_open_to_staff` | Open to staff made a User. |
 | `access_groups_changed` | Access groups changed. Also has `previous_groups` and `groups` (frozensets). |
-| `account_blocked`, `account_unblocked` | An Account was blocked or unblocked. |
+| `user_blocked`, `user_unblocked` | A User was blocked or unblocked. |
 | `temporary_password_set` | IT set a Temporary password. |
-| `authenticators_cleared` | IT cleared an Account's authenticators, passkeys and recovery codes. |
-| `microsoft_link_removed` | IT removed an Account's Microsoft link. Not sent when there was none. |
+| `authenticators_cleared` | IT cleared a User's authenticators, passkeys and recovery codes. |
+| `microsoft_link_removed` | IT removed a User's Microsoft link. Not sent when there was none. |
 
 They are sent inside the transaction that makes the change, so a receiver that raises undoes it. Do slow or outward-facing work, such as email, in `transaction.on_commit`.
 
@@ -276,7 +276,7 @@ The package does not call the browser. The App's frontend uses the browser's Web
 
 All text the package shows goes through Django translation, and no wording names an organisation.
 
-- **Error messages** (such as "Use Microsoft sign-in for this account."): translate them in your own locale catalog (listed in `LOCALE_PATHS`), or subclass the adapters and change `error_messages`.
+- **Error messages** (such as "Use Microsoft sign-in for this user."): translate them in your own locale catalog (listed in `LOCALE_PATHS`), or subclass the adapters and change `error_messages`.
 - **Emails** (Password reset, and allauth's notices when an authenticator or passkey is added or removed) are allauth's templates, `account/email/*` and `mfa/email/*`. Override one by adding a template with the same name in a template directory listed in `TEMPLATES["DIRS"]`, which Django searches before installed apps.
 - The Temporary password form in the Django admin is the only template the package ships (see above).
 
