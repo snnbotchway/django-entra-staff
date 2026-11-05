@@ -183,15 +183,17 @@ from .models import Account
 admin.site.register(Account, AccountAdmin)
 ```
 
-It lists email, Access groups, Microsoft link, password status, Second step status, blocked state and last sign-in.
+`AccountAdmin` is Django's `UserAdmin` fitted to the package's rules, so it looks and works like the user admin IT already knows. The list shows email, Access groups, Microsoft link, password status, Second step status, Active and last sign-in, with Django's filters (Django admin access, superuser, Active, groups) and search by email. The change page keeps `UserAdmin`'s sections (Permissions, Important dates) and adds a read-only Sign-in section: Microsoft link, password status and Second step status. The email is read-only once the Account exists.
 
-IT can invite, set Access groups and block or unblock from here, all through the service functions with the signed-in Account as `acting_account`, so every rule, refusal and signal applies:
+There is no password anywhere on it (ADR 0002): no password field, no change-password link, and the `<id>/password/` page refuses. What IT changes goes through the service functions with the signed-in Account as `acting_account`, so every rule and signal applies:
 
-- **Add** invites a person by email with chosen Access groups (`invite_account`). There is no password field. Creating the first App admin of a new App works this way.
-- **Change** sets the Access groups, the blocked state and the Django admin access flags (`is_staff`, `is_superuser`). Only the declared Access groups are offered, as checkboxes or, when they are exclusive, as one choice. Other Django groups are left alone.
-- **Actions** block or unblock the selected Accounts, set a Temporary password, clear the Second step, and remove a Microsoft link.
+- **Add** invites a person by email with chosen Access groups (`invite_account`). There are no password fields. Creating the first App admin of a new App works this way.
+- **Access groups** is Django's groups picker, offering only the declared Access groups, and is saved with `set_access_groups`. With exclusive Access groups, choosing anything but one is a form error and nothing is saved. Django groups the App didn't declare are left alone.
+- **Active** unticked blocks the Account (`block_account`); ticked again, it unblocks it (`unblock_account`).
+- **Django admin access** and **superuser status** are the Account's own `is_staff` and `is_superuser`, set only here and never by Access groups.
+- **Actions** block or unblock the selected Accounts, set a Temporary password, clear the Second step, and remove a Microsoft link, next to Django's delete.
 
-A refusal, such as two Access groups when they are exclusive, shows a message and saves nothing. Subclass `AccountAdmin` to add columns. Override the Temporary password form with a template at `django_entra_staff/set_temporary_password.html`.
+Subclass `AccountAdmin` to add columns or fields. Override the Temporary password form with a template at `django_entra_staff/set_temporary_password.html`.
 
 The admin sign-in page is replaced on the default `admin.site`: it sends people to `LOGIN_URL`, so the admin opens only after Microsoft sign-in or password plus Second step. An App with its own `AdminSite` must wrap its `login` the same way:
 
