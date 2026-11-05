@@ -32,8 +32,7 @@ PACKAGE_SOCIAL_ADAPTER = dotted_path(SocialAccountAdapter)
 PACKAGE_MFA_ADAPTER = dotted_path(MFAAdapter)
 ALLAUTH_BACKEND = "allauth.account.auth_backends.AuthenticationBackend"
 PACKAGE_MICROSOFT_APP = "django_entra_staff.providers.microsoft"
-ALLAUTH_PROVIDERS_PACKAGE = "allauth.socialaccount.providers"
-ALLAUTH_MICROSOFT_APP = f"{ALLAUTH_PROVIDERS_PACKAGE}.microsoft"
+ALLAUTH_MICROSOFT_APP = "allauth.socialaccount.providers.microsoft"
 
 # The allauth endpoints the package guards, as (url name, the package's view,
 # the MFA type that mounts it or None). The package's URLs shadow allauth's, so

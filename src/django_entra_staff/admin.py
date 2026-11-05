@@ -166,6 +166,8 @@ class AccountAdmin(UserAdmin):
         if "is_active" not in form.changed_data:
             obj.save()
             return
+        # Save the other edits with Active as it was, so the block or unblock
+        # service sees a real change: it saves the new state and sends the signal.
         active = obj.is_active
         obj.is_active = not active
         obj.save()
