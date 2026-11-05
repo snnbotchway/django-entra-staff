@@ -1,0 +1,3 @@
+# Names come from Microsoft
+
+A User has `first_name` and `last_name`, as Django's own `AbstractUser` does, so `get_full_name()` and the Apps' "edited by" and audit screens work without each App adding them. Microsoft is where a staff member's name is kept, so a Microsoft sign-in fills the names: at an Open to staff sign-up, at the first link of an invited User, and again at every later Microsoft sign-in, so a name changed in Microsoft reaches the App. A name typed in the admin for a linked User is therefore replaced at their next Microsoft sign-in; a name Microsoft leaves out is kept. Users without a Microsoft link keep whatever name IT types in the admin.

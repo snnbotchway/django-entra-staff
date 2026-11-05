@@ -35,7 +35,7 @@ The test App in [`tests/testapp/`](tests/testapp/) is a complete, working exampl
 
 ### The User model
 
-Define a concrete User in your App, with any fields you like, and point `AUTH_USER_MODEL` at it. Email is the identifier (no username) and is unique regardless of letter case. A blocked User is an inactive one.
+Define a concrete User in your App, with any fields you like, and point `AUTH_USER_MODEL` at it. Email is the identifier (no username) and is unique regardless of letter case. A blocked User is an inactive one. Like Django's own `AbstractUser` it has `first_name` and `last_name`; a Microsoft sign-in fills them from the Microsoft profile and refreshes them at every later Microsoft sign-in, keeping any name Microsoft leaves out.
 
 ```python
 # users/models.py
@@ -181,7 +181,7 @@ from .models import User
 admin.site.register(User, UserAdmin)
 ```
 
-The package's `UserAdmin` is Django's `django.contrib.auth.admin.UserAdmin` fitted to the package's rules, so it looks and works like the user admin IT already knows. The list shows email, Access groups, Microsoft link, password status, Second step status, Active and last sign-in, with Django's filters (Django admin access, superuser, Active, groups) and search by email. The change page keeps `UserAdmin`'s sections (Permissions, Important dates) and adds a read-only Sign-in section: Microsoft link, password status and Second step status. The email is read-only once the User exists. The admin labels the model "user" and "users", as Django does; to use another name, set `verbose_name` and `verbose_name_plural` in your User's `Meta`.
+The package's `UserAdmin` is Django's `django.contrib.auth.admin.UserAdmin` fitted to the package's rules, so it looks and works like the user admin IT already knows. The list shows email, first and last name, Access groups, Microsoft link, password status, Second step status, Active and last sign-in, with Django's filters (Django admin access, superuser, Active, groups) and search by email or name. The change page keeps `UserAdmin`'s sections (Personal info, Permissions, Important dates) and adds a read-only Sign-in section: Microsoft link, password status and Second step status. The email is read-only once the User exists. The admin labels the model "user" and "users", as Django does; to use another name, set `verbose_name` and `verbose_name_plural` in your User's `Meta`.
 
 There is no password anywhere on it (ADR 0002): no password field, no change-password link, and the `<id>/password/` page refuses. Django's own "Change password" page in the admin header refuses anyone with a Microsoft link. What IT changes goes through the service functions with the signed-in User as `acting_user`, so every rule and signal applies:
 
@@ -279,6 +279,10 @@ All text the package shows goes through Django translation, and no wording names
 - **Error messages** (such as "Use Microsoft sign-in for this account."): translate them in your own locale catalog (listed in `LOCALE_PATHS`), or subclass the adapters and change `error_messages`.
 - **Emails** (Password reset, and allauth's notices when an authenticator or passkey is added or removed) are allauth's templates, `account/email/*` and `mfa/email/*`. Override one by adding a template with the same name in a template directory listed in `TEMPLATES["DIRS"]`, which Django searches before installed apps.
 - The Temporary password form in the Django admin is the only template the package ships (see above).
+
+## Upgrading from 0.2
+
+0.3 adds `first_name` and `last_name` to `AbstractUser`. Run `makemigrations` and `migrate`. If your User already defines fields with those names, yours are kept and Microsoft sign-in fills them.
 
 ## Upgrading from 0.1
 
