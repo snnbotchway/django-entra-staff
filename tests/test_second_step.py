@@ -19,12 +19,12 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def account():
+def user():
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
 
 
-def test_sign_in_is_unfinished_until_a_valid_code(client, second_step_account):
-    response = sign_in(client, second_step_account.email, PASSWORD)
+def test_sign_in_is_unfinished_until_a_valid_code(client, second_step_user):
+    response = sign_in(client, second_step_user.email, PASSWORD)
 
     assert response.status_code == 401
     assert {
@@ -43,19 +43,19 @@ def test_sign_in_is_unfinished_until_a_valid_code(client, second_step_account):
 
     response = client.post(
         f"{API}/auth/2fa/authenticate",
-        {"code": totp_code(totp_secret_of(second_step_account))},
+        {"code": totp_code(totp_secret_of(second_step_user))},
         content_type="application/json",
     )
 
     assert response.status_code == 200
-    assert response.json()["data"]["user"]["email"] == second_step_account.email
+    assert response.json()["data"]["user"]["email"] == second_step_user.email
     assert is_signed_in(client)
 
 
-def test_each_recovery_code_works_once_only(client, second_step_account):
-    codes = recovery_codes_of(second_step_account)
+def test_each_recovery_code_works_once_only(client, second_step_user):
+    codes = recovery_codes_of(second_step_user)
 
-    sign_in(client, second_step_account.email, PASSWORD)
+    sign_in(client, second_step_user.email, PASSWORD)
     response = client.post(
         f"{API}/auth/2fa/authenticate", {"code": codes[0]}, content_type="application/json"
     )
@@ -64,7 +64,7 @@ def test_each_recovery_code_works_once_only(client, second_step_account):
     assert is_signed_in(client)
 
     client.logout()
-    sign_in(client, second_step_account.email, PASSWORD)
+    sign_in(client, second_step_user.email, PASSWORD)
     response = client.post(
         f"{API}/auth/2fa/authenticate", {"code": codes[0]}, content_type="application/json"
     )
@@ -80,8 +80,8 @@ def test_each_recovery_code_works_once_only(client, second_step_account):
     assert is_signed_in(client)
 
 
-def test_account_without_second_step_is_taken_through_set_up(client, account):
-    response = sign_in(client, account.email, PASSWORD)
+def test_user_without_second_step_is_taken_through_set_up(client, user):
+    response = sign_in(client, user.email, PASSWORD)
 
     assert response.status_code == 401
     assert {"id": "second_step_setup", "is_pending": True} in response.json()["data"]["flows"]
@@ -106,24 +106,22 @@ def test_account_without_second_step_is_taken_through_set_up(client, account):
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert data["user"]["email"] == account.email
+    assert data["user"]["email"] == user.email
     assert len(data["recovery_codes"]) > 0
     assert is_signed_in(client)
-    assert Authenticator.objects.filter(user=account, type=Authenticator.Type.TOTP).exists()
-    assert Authenticator.objects.filter(
-        user=account, type=Authenticator.Type.RECOVERY_CODES
-    ).exists()
+    assert Authenticator.objects.filter(user=user, type=Authenticator.Type.TOTP).exists()
+    assert Authenticator.objects.filter(user=user, type=Authenticator.Type.RECOVERY_CODES).exists()
 
 
-def test_the_set_up_second_step_is_required_at_the_next_sign_in(client, account):
-    sign_in(client, account.email, PASSWORD)
+def test_the_set_up_second_step_is_required_at_the_next_sign_in(client, user):
+    sign_in(client, user.email, PASSWORD)
     secret = client.get(f"{API}/auth/2fa/setup").json()["meta"]["secret"]
     client.post(
         f"{API}/auth/2fa/setup", {"code": totp_code(secret)}, content_type="application/json"
     )
     client.logout()
 
-    response = sign_in(client, account.email, PASSWORD)
+    response = sign_in(client, user.email, PASSWORD)
 
     assert response.status_code == 401
     flows = response.json()["data"]["flows"]
@@ -136,7 +134,7 @@ def test_the_set_up_second_step_is_required_at_the_next_sign_in(client, account)
 
     response = client.post(
         f"{API}/auth/2fa/authenticate",
-        {"code": totp_code(totp_secret_of(account))},
+        {"code": totp_code(totp_secret_of(user))},
         content_type="application/json",
     )
 
@@ -144,8 +142,8 @@ def test_the_set_up_second_step_is_required_at_the_next_sign_in(client, account)
     assert is_signed_in(client)
 
 
-def test_a_half_finished_sign_in_cannot_reach_other_endpoints(client, account):
-    sign_in(client, account.email, PASSWORD)
+def test_a_half_finished_sign_in_cannot_reach_other_endpoints(client, user):
+    sign_in(client, user.email, PASSWORD)
 
     assert client.get(f"{API}/auth/session").status_code == 401
     assert client.get(f"{API}/account/authenticators").status_code == 401
@@ -157,9 +155,9 @@ def test_a_half_finished_sign_in_cannot_reach_other_endpoints(client, account):
     assert not is_signed_in(client)
 
 
-def test_set_up_refuses_when_the_second_step_already_exists(client, account):
-    sign_in(client, account.email, PASSWORD)
-    TOTP.activate(account, generate_totp_secret())
+def test_set_up_refuses_when_the_second_step_already_exists(client, user):
+    sign_in(client, user.email, PASSWORD)
+    TOTP.activate(user, generate_totp_secret())
 
     assert client.get(f"{API}/auth/2fa/setup").status_code == 409
     response = client.post(
@@ -167,7 +165,7 @@ def test_set_up_refuses_when_the_second_step_already_exists(client, account):
     )
 
     assert response.status_code == 409
-    assert Authenticator.objects.filter(user=account, type=Authenticator.Type.TOTP).count() == 1
+    assert Authenticator.objects.filter(user=user, type=Authenticator.Type.TOTP).count() == 1
     assert not is_signed_in(client)
 
 
@@ -183,8 +181,8 @@ def authenticators_added():
     authenticator_added.disconnect(receiver)
 
 
-def test_set_up_announces_the_new_authenticators(client, account, authenticators_added):
-    sign_in(client, account.email, PASSWORD)
+def test_set_up_announces_the_new_authenticators(client, user, authenticators_added):
+    sign_in(client, user.email, PASSWORD)
     secret = client.get(f"{API}/auth/2fa/setup").json()["meta"]["secret"]
 
     with TestCase.captureOnCommitCallbacks(execute=True):

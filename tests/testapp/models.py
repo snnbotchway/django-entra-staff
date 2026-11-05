@@ -1,5 +1,5 @@
-from django_entra_staff.models import AbstractAccount
+from django_entra_staff.models import AbstractUser
 
 
-class Account(AbstractAccount):
-    """The test App's concrete Account."""
+class User(AbstractUser):
+    """The test App's concrete User."""

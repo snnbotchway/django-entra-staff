@@ -23,7 +23,7 @@ from .conf import (
     get_settings,
     validate,
 )
-from .models import AbstractAccount
+from .models import AbstractUser
 from .providers.microsoft.views import oauth2_callback
 from .views import GuardedManageEmailView, GuardedManageTOTPView, GuardedManageWebAuthnView
 
@@ -91,7 +91,7 @@ def _microsoft_callback_is_the_packages() -> bool:
 
 
 def _email_authentication_is_on() -> bool:
-    """Whether allauth would match a Microsoft person to an Account by email on
+    """Whether allauth would match a Microsoft person to a User by email on
     its own, globally or for one provider (its settings or its app's)."""
     if (
         socialaccount_settings.EMAIL_AUTHENTICATION
@@ -141,11 +141,11 @@ def check_settings(app_configs, **kwargs):
     problems = validate(raw)
     errors = [Error(problem.message, id=problem.id.value) for problem in problems]
 
-    if not issubclass(get_user_model(), AbstractAccount):
+    if not issubclass(get_user_model(), AbstractUser):
         errors.append(
             Error(
-                "AUTH_USER_MODEL must subclass django_entra_staff.models.AbstractAccount.",
-                id=CheckId.USER_MODEL_NOT_AN_ACCOUNT.value,
+                "AUTH_USER_MODEL must subclass django_entra_staff.models.AbstractUser.",
+                id=CheckId.USER_MODEL_NOT_A_PACKAGE_USER.value,
             )
         )
 
@@ -225,8 +225,7 @@ def check_settings(app_configs, **kwargs):
     if mfa_settings.PASSKEY_SIGNUP_ENABLED:
         errors.append(
             Error(
-                "MFA_PASSKEY_SIGNUP_ENABLED must stay off: nobody creates an Account"
-                " with a passkey.",
+                "MFA_PASSKEY_SIGNUP_ENABLED must stay off: nobody creates a User with a passkey.",
                 id=CheckId.PASSKEY_SIGNUP_ON.value,
             )
         )
@@ -292,7 +291,7 @@ def _allauth_setting_errors():
                 "SOCIALACCOUNT_EMAIL_AUTHENTICATION,"
                 " SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT and a provider's"
                 " EMAIL_AUTHENTICATION must stay off: allauth would sign a Microsoft person"
-                " in to the Account with their email, before the package links it.",
+                " in to the User with their email, before the package links it.",
                 id=CheckId.EMAIL_AUTHENTICATION_ON.value,
             )
         )
@@ -307,7 +306,7 @@ def _allauth_setting_errors():
         errors.append(
             Error(
                 "ACCOUNT_PREVENT_ENUMERATION must stay on: sign-in, Password reset and the"
-                " email endpoints must not tell whether an email has an Account.",
+                " email endpoints must not tell whether an email has a User.",
                 id=CheckId.PREVENT_ENUMERATION_OFF.value,
             )
         )
@@ -316,7 +315,7 @@ def _allauth_setting_errors():
             Error(
                 "ACCOUNT_EMAIL_VERIFICATION_SUPPORTS_CHANGE must stay off: a person waiting"
                 " to verify their email at sign-in could change it, unverified, to a"
-                " colleague's, whose first Microsoft sign-in would then land in their Account.",
+                " colleague's, whose first Microsoft sign-in would then land in their User.",
                 id=CheckId.EMAIL_CHANGE_WHILE_VERIFYING_ON.value,
             )
         )

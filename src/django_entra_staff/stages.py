@@ -36,7 +36,7 @@ class PasswordSignInStage(LoginStage):
 
 
 class SecondStepSetupStage(PasswordSignInStage):
-    """An Account without a Second step is taken through authenticator set-up
+    """A User without a Second step is taken through authenticator set-up
     before the sign-in opens it."""
 
     key = "second_step_setup"
@@ -47,7 +47,7 @@ class SecondStepSetupStage(PasswordSignInStage):
 
 
 class ReplacePasswordStage(PasswordSignInStage):
-    """An Account with a Temporary password must choose a new one before the
+    """A User with a Temporary password must choose a new one before the
     sign-in opens it."""
 
     key = "replace_password"

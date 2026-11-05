@@ -1,17 +1,17 @@
-"""The Django admin for Accounts: Django's user admin, fitted to the package's rules.
+"""The Django admin for Users: Django's user admin, fitted to the package's rules.
 
 It keeps the familiar shape of `UserAdmin` but never shows or sets a password
 (ADR 0002): the add page invites by email, and Access groups, blocking and the
 actions go through the service functions, so the admin cannot bypass the
 package's rules and every signal is sent. The App registers it for its
-concrete Account model.
+concrete User model.
 """
 
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.contrib.admin.utils import model_ngettext
-from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth import admin as auth_admin
 from django.contrib.auth.models import Group
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import PermissionDenied
@@ -47,7 +47,7 @@ class AccessGroupsForm(forms.ModelForm):
         return groups
 
 
-class AccountChangeForm(AccessGroupsForm):
+class UserChangeForm(AccessGroupsForm):
     class Meta:
         help_texts = {
             "is_active": _("Untick to block them from signing in."),
@@ -79,7 +79,7 @@ class InviteForm(AccessGroupsForm):
         email = self.cleaned_data["email"]
         if type(self.instance).objects.filter(email__iexact=email).exists():
             raise forms.ValidationError(
-                _("A user with this email already exists."), code=ErrorCode.ACCOUNT_EXISTS
+                _("A user with this email already exists."), code=ErrorCode.USER_EXISTS
             )
         return email
 
@@ -88,11 +88,11 @@ def _names(groups) -> list[str]:
     return [group.name for group in groups]
 
 
-class AccountAdmin(UserAdmin):
+class UserAdmin(auth_admin.UserAdmin):
     add_form_template = None
     set_temporary_password_template = "django_entra_staff/set_temporary_password.html"
 
-    form = AccountChangeForm
+    form = UserChangeForm
     add_form = InviteForm
     fieldsets = (
         (None, {"fields": ("email",)}),
@@ -124,8 +124,8 @@ class AccountAdmin(UserAdmin):
     search_fields = ("email",)
     ordering = ("email",)
     actions = (
-        "block_accounts",
-        "unblock_accounts",
+        "block_users",
+        "unblock_users",
         "set_temporary_password",
         "clear_authenticators",
         "remove_microsoft_link",
@@ -154,15 +154,15 @@ class AccountAdmin(UserAdmin):
     def save_form(self, request, form, change):
         if change:
             return super().save_form(request, form, change)
-        return services.invite_account(
+        return services.invite_user(
             form.cleaned_data["email"],
             _names(form.cleaned_data["groups"]),
-            acting_account=request.user,
+            acting_user=request.user,
         )
 
     def save_model(self, request, obj, form, change):
         if not change:
-            return  # `save_form` invited and saved the Account
+            return  # `save_form` invited and saved the User
         if "is_active" not in form.changed_data:
             obj.save()
             return
@@ -171,8 +171,8 @@ class AccountAdmin(UserAdmin):
         active = obj.is_active
         obj.is_active = not active
         obj.save()
-        change_active = services.unblock_account if active else services.block_account
-        change_active(obj, acting_account=request.user)
+        change_active = services.unblock_user if active else services.block_user
+        change_active(obj, acting_user=request.user)
 
     def save_related(self, request, form, formsets, change):
         if not change:
@@ -180,7 +180,7 @@ class AccountAdmin(UserAdmin):
         groups = form.cleaned_data.pop("groups", None)
         super().save_related(request, form, formsets, change)
         if groups is not None:
-            services.set_access_groups(form.instance, _names(groups), acting_account=request.user)
+            services.set_access_groups(form.instance, _names(groups), acting_user=request.user)
 
     def get_queryset(self, request):
         return (
@@ -190,60 +190,60 @@ class AccountAdmin(UserAdmin):
         )
 
     @admin.display(description=_("Access groups"))
-    def access_groups(self, account):
+    def access_groups(self, user):
         declared = set(get_settings().access_groups)
         return ", ".join(
-            sorted(group.name for group in account.groups.all() if group.name in declared)
+            sorted(group.name for group in user.groups.all() if group.name in declared)
         )
 
     @admin.display(description=_("Microsoft link"))
-    def microsoft_link(self, account):
+    def microsoft_link(self, user):
         # `services.has_microsoft_link` would cost a query per row; this reads
         # the prefetched links instead.
-        linked = bool(account.socialaccount_set.all())
+        linked = bool(user.socialaccount_set.all())
         return _("Linked") if linked else _("Not linked")
 
     @admin.display(description=_("Password status"))
-    def password_status(self, account):
-        if not account.has_usable_password():
+    def password_status(self, user):
+        if not user.has_usable_password():
             return _("No password")
-        if account.must_replace_password:
+        if user.must_replace_password:
             return _("Temporary password")
         return _("Password set")
 
     @admin.display(description=_("Second step status"))
-    def second_step_status(self, account):
-        held = {authenticator.type for authenticator in account.authenticator_set.all()}
+    def second_step_status(self, user):
+        held = {authenticator.type for authenticator in user.authenticator_set.all()}
         return _("Set up") if held.intersection(SECOND_STEP_TYPES) else _("Not set up")
 
     @admin.display(description=_("Last sign-in"), ordering="last_login")
-    def last_sign_in(self, account):
-        return account.last_login or self.get_empty_value_display()
+    def last_sign_in(self, user):
+        return user.last_login or self.get_empty_value_display()
 
     @admin.action(description=_("Block the selected users"))
-    def block_accounts(self, request, queryset):
+    def block_users(self, request, queryset):
         self._set_blocked(
             request,
             queryset.filter(is_active=True),
-            services.block_account,
+            services.block_user,
             _("Blocked %(count)d %(items)s."),
             _("All the selected users were already blocked."),
         )
 
     @admin.action(description=_("Unblock the selected users"))
-    def unblock_accounts(self, request, queryset):
+    def unblock_users(self, request, queryset):
         self._set_blocked(
             request,
             queryset.filter(is_active=False),
-            services.unblock_account,
+            services.unblock_user,
             _("Unblocked %(count)d %(items)s."),
             _("None of the selected users were blocked."),
         )
 
-    def _set_blocked(self, request, accounts, change, done_message, nothing_message):
+    def _set_blocked(self, request, users, change, done_message, nothing_message):
         count = 0
-        for account in accounts:
-            change(account, acting_account=request.user)
+        for user in users:
+            change(user, acting_user=request.user)
             count += 1
         self._report(request, count, done_message, nothing_message)
 
@@ -256,9 +256,9 @@ class AccountAdmin(UserAdmin):
             return self._temporary_password_page(request, queryset, form)
         password = form.cleaned_data["password"]
         done, linked = 0, 0
-        for account in queryset:
+        for user in queryset:
             try:
-                services.set_temporary_password(account, password, acting_account=request.user)
+                services.set_temporary_password(user, password, acting_user=request.user)
                 done += 1
             except StaffError as error:
                 if error.code is not ErrorCode.MICROSOFT_LINKED:
@@ -289,7 +289,7 @@ class AccountAdmin(UserAdmin):
             "title": _("Set a Temporary password"),
             "subtitle": None,
             "form": form,
-            "accounts": [(account, bool(account.socialaccount_set.all())) for account in queryset],
+            "users": [(user, bool(user.socialaccount_set.all())) for user in queryset],
             "opts": self.model._meta,
             "action_checkbox_name": ACTION_CHECKBOX_NAME,
             "media": self.media,
@@ -300,8 +300,7 @@ class AccountAdmin(UserAdmin):
     @admin.action(description=_("Clear the Second step"))
     def clear_authenticators(self, request, queryset):
         count = sum(
-            services.clear_authenticators(account, acting_account=request.user)
-            for account in queryset
+            services.clear_authenticators(user, acting_user=request.user) for user in queryset
         )
         self._report(
             request,
@@ -313,8 +312,7 @@ class AccountAdmin(UserAdmin):
     @admin.action(description=_("Remove the Microsoft link"))
     def remove_microsoft_link(self, request, queryset):
         count = sum(
-            services.remove_microsoft_link(account, acting_account=request.user)
-            for account in queryset
+            services.remove_microsoft_link(user, acting_user=request.user) for user in queryset
         )
         self._report(
             request,
@@ -324,7 +322,7 @@ class AccountAdmin(UserAdmin):
         )
 
     def _report(self, request, count, done_message, nothing_message):
-        """Say how many Accounts an action changed, or warn that it changed none."""
+        """Say how many Users an action changed, or warn that it changed none."""
         if count:
             self.message_user(request, self._counted(done_message, count), messages.SUCCESS)
         else:

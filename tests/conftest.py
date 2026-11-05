@@ -44,17 +44,17 @@ def is_signed_in(client):
     return client.get(f"{API}/auth/session").status_code == 200
 
 
-def link_microsoft(account, uid="uid-1", provider="microsoft"):
-    """Give the Account the Microsoft link row, whatever way it was made."""
-    return SocialAccount.objects.create(user=account, provider=provider, uid=uid)
+def link_microsoft(user, uid="uid-1", provider="microsoft"):
+    """Give the User the Microsoft link row, whatever way it was made."""
+    return SocialAccount.objects.create(user=user, provider=provider, uid=uid)
 
 
 @pytest.fixture
-def second_step_account(account):
-    """An Account that has set up its Second step (TOTP and recovery codes)."""
-    TOTP.activate(account, generate_totp_secret())
-    RecoveryCodes.activate(account)
-    return account
+def second_step_user(user):
+    """A User that has set up its Second step (TOTP and recovery codes)."""
+    TOTP.activate(user, generate_totp_secret())
+    RecoveryCodes.activate(user)
+    return user
 
 
 def totp_code(secret):
@@ -62,13 +62,13 @@ def totp_code(secret):
     return format_hotp_value(hotp_value(secret, counter))
 
 
-def totp_secret_of(account):
-    authenticator = Authenticator.objects.get(user=account, type=Authenticator.Type.TOTP)
+def totp_secret_of(user):
+    authenticator = Authenticator.objects.get(user=user, type=Authenticator.Type.TOTP)
     return decrypt(authenticator.data["secret"])
 
 
-def recovery_codes_of(account):
-    authenticator = Authenticator.objects.get(user=account, type=Authenticator.Type.RECOVERY_CODES)
+def recovery_codes_of(user):
+    authenticator = Authenticator.objects.get(user=user, type=Authenticator.Type.RECOVERY_CODES)
     return authenticator.wrap().get_unused_codes()
 
 

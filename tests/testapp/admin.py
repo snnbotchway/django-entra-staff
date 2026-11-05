@@ -1,7 +1,7 @@
 from django.contrib import admin
 
-from django_entra_staff.admin import AccountAdmin
+from django_entra_staff.admin import UserAdmin
 
-from .models import Account
+from .models import User
 
-admin.site.register(Account, AccountAdmin)
+admin.site.register(User, UserAdmin)

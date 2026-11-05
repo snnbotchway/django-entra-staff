@@ -34,7 +34,7 @@ from .stages import SECOND_STEP_TYPES, ReplacePasswordStage, SecondStepSetupStag
 
 
 class _SecondStepSetupBaseView(AuthenticationStageAPIView):
-    """Set-up of the first Second step, refused once the Account has one."""
+    """Set-up of the first Second step, refused once the User has one."""
 
     stage_class = SecondStepSetupStage
 
@@ -164,16 +164,16 @@ class GuardedManageTOTPView(ManageTOTPView):
 
 class GuardedManageEmailView(ManageEmailView):
     """allauth's email management, refusing to add an address or make one primary
-    for an Account with a Microsoft link, and making an unverified address
-    primary for any Account.
+    for a User with a Microsoft link, and making an unverified address
+    primary for any User.
 
-    The Account's email is what a first Microsoft sign-in matches. Making
+    The User's email is what a first Microsoft sign-in matches. Making
     another address primary rewrites it, and allauth does that for an unverified
-    address when the Account has no verified one. A linked person could then take
+    address when the User has no verified one. A linked person could then take
     a colleague's address, and so could a person with a password: the colleague's
-    first Microsoft sign-in would land in their Account. A person still waiting
+    first Microsoft sign-in would land in their User. A person still waiting
     to verify their email at sign-in cannot change it either: allauth would
-    rewrite the Account's email unverified. Listing, deleting a non-primary
+    rewrite the User's email unverified. Listing, deleting a non-primary
     address and resending a verification stay allowed.
     """
 

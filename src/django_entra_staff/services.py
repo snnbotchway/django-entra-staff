@@ -1,11 +1,11 @@
-"""The public Python API for changing Accounts. Screens, commands and tests all use these.
+"""The public Python API for changing Users. Screens, commands and tests all use these.
 
 Each function enforces the package's rules, raises `StaffError` with a stable `ErrorCode` when
 it refuses, and sends its signal (see `signals`) once the change is saved. Only
 `set_temporary_password` takes a password — the Temporary password IT hands out; no function
 returns password data, and none of them touches Django admin access.
 
-`acting_account` is the Account making the change; it is only carried to the signals.
+`acting_user` is the User making the change; it is only carried to the signals.
 """
 
 from collections.abc import Iterable
@@ -36,9 +36,9 @@ def _require_declared(names: Iterable[str]) -> None:
         )
 
 
-def _held_groups(account) -> frozenset[str]:
+def _held_groups(user) -> frozenset[str]:
     declared = get_settings().access_groups
-    return frozenset(account.groups.filter(name__in=declared).values_list("name", flat=True))
+    return frozenset(user.groups.filter(name__in=declared).values_list("name", flat=True))
 
 
 def _check_shape(names: frozenset[str]) -> None:
@@ -46,28 +46,28 @@ def _check_shape(names: frozenset[str]) -> None:
     if get_settings().group_mode == GroupMode.EXCLUSIVE and len(names) != 1:
         raise StaffError(
             ErrorCode.EXCLUSIVE_NEEDS_ONE_GROUP,
-            "Access groups are exclusive: an Account holds exactly one.",
+            "Access groups are exclusive: a User holds exactly one.",
         )
 
 
-def _replace_groups(account, names: frozenset[str], acting_account) -> None:
-    previous = _held_groups(account)
+def _replace_groups(user, names: frozenset[str], acting_user) -> None:
+    previous = _held_groups(user)
     if names == previous:
         return
-    account.groups.remove(*account.groups.filter(name__in=previous))
-    account.groups.add(*(Group.objects.get_or_create(name=name)[0] for name in names))
+    user.groups.remove(*user.groups.filter(name__in=previous))
+    user.groups.add(*(Group.objects.get_or_create(name=name)[0] for name in names))
     signals.access_groups_changed.send(
-        sender=type(account),
-        account=account,
-        acting_account=acting_account,
+        sender=type(user),
+        user=user,
+        acting_user=acting_user,
         previous_groups=previous,
         groups=names,
     )
 
 
 @transaction.atomic
-def invite_account(email: str, access_groups: GroupNames, *, acting_account=None):
-    """Make an Account for `email` with `access_groups` and no password, and return it.
+def invite_user(email: str, access_groups: GroupNames, *, acting_user=None):
+    """Make a User for `email` with `access_groups` and no password, and return it.
 
     The person then signs in with Microsoft sign-in, which links by this email.
     """
@@ -75,107 +75,101 @@ def invite_account(email: str, access_groups: GroupNames, *, acting_account=None
     _check_shape(names)
     model = get_user_model()
     if model.objects.filter(email__iexact=email).exists():
-        raise StaffError(ErrorCode.ACCOUNT_EXISTS, "An Account with this email already exists.")
-    account = model.objects.create_user(email)
-    _replace_groups(account, names, acting_account)
-    return account
+        raise StaffError(ErrorCode.USER_EXISTS, "A User with this email already exists.")
+    user = model.objects.create_user(email)
+    _replace_groups(user, names, acting_user)
+    return user
 
 
 @transaction.atomic
-def set_access_groups(account, access_groups: GroupNames, *, acting_account=None) -> None:
-    """Make `access_groups` the Account's Access groups, replacing the ones it held.
+def set_access_groups(user, access_groups: GroupNames, *, acting_user=None) -> None:
+    """Make `access_groups` the User's Access groups, replacing the ones it held.
 
     Django groups the App declares no Access group for are left alone.
     """
     names = _names(access_groups)
     _check_shape(names)
-    _replace_groups(account, names, acting_account)
+    _replace_groups(user, names, acting_user)
 
 
-def _microsoft_links(account):
+def _microsoft_links(user):
     # Microsoft is the only provider an App uses, so every social account is the
     # Microsoft link, whatever `provider_id` the App's Microsoft app is stored under.
-    return SocialAccount.objects.filter(user=account)
+    return SocialAccount.objects.filter(user=user)
 
 
-def has_microsoft_link(account) -> bool:
-    """Whether the Account has a Microsoft link, which rules out any password (ADR 0002)."""
-    return _microsoft_links(account).exists()
+def has_microsoft_link(user) -> bool:
+    """Whether the User has a Microsoft link, which rules out any password (ADR 0002)."""
+    return _microsoft_links(user).exists()
 
 
-def _set_active(account, active: bool, signal, acting_account) -> None:
+def _set_active(user, active: bool, signal, acting_user) -> None:
     with transaction.atomic():
-        if account.is_active == active:
+        if user.is_active == active:
             return
-        account.is_active = active
-        account.save(update_fields=["is_active"])
-        signal.send(sender=type(account), account=account, acting_account=acting_account)
+        user.is_active = active
+        user.save(update_fields=["is_active"])
+        signal.send(sender=type(user), user=user, acting_user=acting_user)
 
 
-def block_account(account, *, acting_account=None) -> None:
-    """Stop the Account signing in. Blocking a blocked Account does nothing."""
-    _set_active(account, False, signals.account_blocked, acting_account)
+def block_user(user, *, acting_user=None) -> None:
+    """Stop the User signing in. Blocking a blocked User does nothing."""
+    _set_active(user, False, signals.user_blocked, acting_user)
 
 
-def unblock_account(account, *, acting_account=None) -> None:
-    """Let a blocked Account sign in again. Unblocking an active Account does nothing."""
-    _set_active(account, True, signals.account_unblocked, acting_account)
+def unblock_user(user, *, acting_user=None) -> None:
+    """Let a blocked User sign in again. Unblocking an active User does nothing."""
+    _set_active(user, True, signals.user_unblocked, acting_user)
 
 
 @transaction.atomic
-def set_temporary_password(account, password: str, *, acting_account=None) -> None:
-    """Give the Account a Temporary password the person must replace at their next
+def set_temporary_password(user, password: str, *, acting_user=None) -> None:
+    """Give the User a Temporary password the person must replace at their next
     Password sign-in."""
-    if has_microsoft_link(account):
+    if has_microsoft_link(user):
         raise StaffError(
             ErrorCode.MICROSOFT_LINKED,
-            "An Account with a Microsoft link cannot get a Temporary password.",
+            "A User with a Microsoft link cannot get a Temporary password.",
         )
-    account.set_password(password)
-    account.must_replace_password = True
-    account.save(update_fields=["password", "must_replace_password"])
-    signals.temporary_password_set.send(
-        sender=type(account), account=account, acting_account=acting_account
-    )
+    user.set_password(password)
+    user.must_replace_password = True
+    user.save(update_fields=["password", "must_replace_password"])
+    signals.temporary_password_set.send(sender=type(user), user=user, acting_user=acting_user)
 
 
 @transaction.atomic
-def clear_authenticators(account, *, acting_account=None) -> bool:
-    """Remove the Account's authenticator, passkeys and recovery codes, so the
+def clear_authenticators(user, *, acting_user=None) -> bool:
+    """Remove the User's authenticator, passkeys and recovery codes, so the
     person sets up a new Second step at their next Password sign-in.
 
     Returns whether anything was removed; the signal is sent only then.
     """
-    removed = Authenticator.objects.filter(user=account).delete()[0]
+    removed = Authenticator.objects.filter(user=user).delete()[0]
     if not removed:
         return False
-    signals.authenticators_cleared.send(
-        sender=type(account), account=account, acting_account=acting_account
-    )
+    signals.authenticators_cleared.send(sender=type(user), user=user, acting_user=acting_user)
     return True
 
 
 @transaction.atomic
-def remove_microsoft_link(account, *, acting_account=None) -> bool:
-    """Remove the Account's Microsoft link, so the next Microsoft sign-in links
+def remove_microsoft_link(user, *, acting_user=None) -> bool:
+    """Remove the User's Microsoft link, so the next Microsoft sign-in links
     again by email.
 
-    The Account keeps no password: the person signs in through Microsoft sign-in,
+    The User keeps no password: the person signs in through Microsoft sign-in,
     or IT gives them a Temporary password, which is allowed once the link is gone.
     Returns whether a link was removed; the signal is sent only then.
     """
-    removed = _microsoft_links(account).delete()[0]
+    removed = _microsoft_links(user).delete()[0]
     if not removed:
         return False
-    signals.microsoft_link_removed.send(
-        sender=type(account), account=account, acting_account=acting_account
-    )
+    signals.microsoft_link_removed.send(sender=type(user), user=user, acting_user=acting_user)
     return True
 
 
-def has_access_group(account, access_group: str) -> bool:
-    """Whether `account` holds the declared Access group. False for anyone not signed in."""
+def has_access_group(user, access_group: str) -> bool:
+    """Whether `user` holds the declared Access group. False for anyone not signed in."""
     _require_declared([access_group])
-    if not account.is_authenticated:
+    if not user.is_authenticated:
         return False
-    return account.groups.filter(name=access_group).exists()
+    return user.groups.filter(name=access_group).exists()

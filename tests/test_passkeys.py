@@ -20,15 +20,15 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def account():
+def user():
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
 
 
 @pytest.fixture
-def totp_account(account):
-    TOTP.activate(account, generate_totp_secret())
-    RecoveryCodes.activate(account)
-    return account
+def totp_user(user):
+    TOTP.activate(user, generate_totp_secret())
+    RecoveryCodes.activate(user)
+    return user
 
 
 def register_passkey(client, name):
@@ -73,17 +73,17 @@ def add_passkey_while_signed_in(client, name):
 
 
 @pytest.fixture
-def passkey_account(client, account):
-    """An Account taken through passkey set-up, with its key and recovery codes."""
-    sign_in(client, account.email, PASSWORD)
+def passkey_user(client, user):
+    """A User taken through passkey set-up, with its key and recovery codes."""
+    sign_in(client, user.email, PASSWORD)
     key, response = register_passkey(client, "Laptop")
     recovery_codes = response.json()["data"]["recovery_codes"]
     client.logout()
-    return account, key, recovery_codes
+    return user, key, recovery_codes
 
 
-def test_set_up_with_a_passkey_opens_the_account(client, account):
-    response = sign_in(client, account.email, PASSWORD)
+def test_set_up_with_a_passkey_opens_the_user(client, user):
+    response = sign_in(client, user.email, PASSWORD)
 
     assert response.status_code == 401
     assert {"id": "second_step_setup", "is_pending": True} in response.json()["data"]["flows"]
@@ -93,23 +93,21 @@ def test_set_up_with_a_passkey_opens_the_account(client, account):
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert data["user"]["email"] == account.email
+    assert data["user"]["email"] == user.email
     assert len(data["recovery_codes"]) > 0
     assert data["methods"][-1]["method"] == "mfa"
     assert data["methods"][-1]["type"] == "webauthn"
     assert is_signed_in(client)
-    assert Authenticator.objects.filter(user=account, type=Authenticator.Type.WEBAUTHN).exists()
-    assert Authenticator.objects.filter(
-        user=account, type=Authenticator.Type.RECOVERY_CODES
-    ).exists()
+    assert Authenticator.objects.filter(user=user, type=Authenticator.Type.WEBAUTHN).exists()
+    assert Authenticator.objects.filter(user=user, type=Authenticator.Type.RECOVERY_CODES).exists()
 
 
-def test_the_passkey_is_the_second_step_at_the_next_sign_in(client, account):
-    sign_in(client, account.email, PASSWORD)
+def test_the_passkey_is_the_second_step_at_the_next_sign_in(client, user):
+    sign_in(client, user.email, PASSWORD)
     key, _ = register_passkey(client, "Laptop")
     client.logout()
 
-    response = sign_in(client, account.email, PASSWORD)
+    response = sign_in(client, user.email, PASSWORD)
 
     assert response.status_code == 401
     flows = response.json()["data"]["flows"]
@@ -132,13 +130,13 @@ def test_the_passkey_is_the_second_step_at_the_next_sign_in(client, account):
     )
 
     assert response.status_code == 200
-    assert response.json()["data"]["user"]["email"] == account.email
+    assert response.json()["data"]["user"]["email"] == user.email
     assert is_signed_in(client)
 
 
-def test_passkey_set_up_refuses_when_a_second_step_already_exists(client, account):
-    sign_in(client, account.email, PASSWORD)
-    TOTP.activate(account, generate_totp_secret())
+def test_passkey_set_up_refuses_when_a_second_step_already_exists(client, user):
+    sign_in(client, user.email, PASSWORD)
+    TOTP.activate(user, generate_totp_secret())
 
     assert client.get(f"{API}/auth/2fa/setup/webauthn").status_code == 409
     response = client.post(
@@ -148,12 +146,12 @@ def test_passkey_set_up_refuses_when_a_second_step_already_exists(client, accoun
     )
 
     assert response.status_code == 409
-    assert not Authenticator.objects.filter(user=account, type=Authenticator.Type.WEBAUTHN).exists()
+    assert not Authenticator.objects.filter(user=user, type=Authenticator.Type.WEBAUTHN).exists()
     assert not is_signed_in(client)
 
 
-def test_a_passkey_never_opens_the_account_without_the_password(client, account):
-    sign_in(client, account.email, PASSWORD)
+def test_a_passkey_never_opens_the_user_without_the_password(client, user):
+    sign_in(client, user.email, PASSWORD)
     register_passkey(client, "Laptop")
     client.logout()
 
@@ -162,9 +160,9 @@ def test_a_passkey_never_opens_the_account_without_the_password(client, account)
     assert not is_signed_in(client)
 
 
-def test_a_person_can_register_several_named_passkeys(client, passkey_account):
-    account, key, recovery_codes = passkey_account
-    sign_in(client, account.email, PASSWORD)
+def test_a_person_can_register_several_named_passkeys(client, passkey_user):
+    user, key, recovery_codes = passkey_user
+    sign_in(client, user.email, PASSWORD)
     response = authenticate_with_passkey(client, key)
 
     assert response.status_code == 200
@@ -180,26 +178,26 @@ def test_a_person_can_register_several_named_passkeys(client, passkey_account):
     assert response.json()["data"]["name"] == "Phone"
 
     client.logout()
-    sign_in(client, account.email, PASSWORD)
+    sign_in(client, user.email, PASSWORD)
     response = authenticate_with_passkey(client, phone)
 
     assert response.status_code == 200
     assert is_signed_in(client)
 
     client.logout()
-    sign_in(client, account.email, PASSWORD)
+    sign_in(client, user.email, PASSWORD)
     response = authenticate_with_passkey(client, key)
 
     assert response.status_code == 200
     assert is_signed_in(client)
 
 
-def test_removing_the_last_second_step_is_refused(client, passkey_account):
-    account, key, recovery_codes = passkey_account
-    sign_in(client, account.email, PASSWORD)
+def test_removing_the_last_second_step_is_refused(client, passkey_user):
+    user, key, recovery_codes = passkey_user
+    sign_in(client, user.email, PASSWORD)
     authenticate_with_passkey(client, key)
     reauthenticate(client, recovery_codes[0])
-    authenticator = Authenticator.objects.get(user=account, type=Authenticator.Type.WEBAUTHN)
+    authenticator = Authenticator.objects.get(user=user, type=Authenticator.Type.WEBAUTHN)
 
     response = client.delete(
         f"{API}/account/authenticators/webauthn",
@@ -209,15 +207,15 @@ def test_removing_the_last_second_step_is_refused(client, passkey_account):
 
     assert response.status_code == 409
     assert response.json()["errors"][0]["code"] == "cannot_delete_authenticator"
-    assert Authenticator.objects.filter(user=account, type=Authenticator.Type.WEBAUTHN).exists()
+    assert Authenticator.objects.filter(user=user, type=Authenticator.Type.WEBAUTHN).exists()
 
 
-def test_one_of_several_second_steps_can_be_removed(client, passkey_account):
-    account, key, recovery_codes = passkey_account
-    sign_in(client, account.email, PASSWORD)
+def test_one_of_several_second_steps_can_be_removed(client, passkey_user):
+    user, key, recovery_codes = passkey_user
+    sign_in(client, user.email, PASSWORD)
     authenticate_with_passkey(client, key)
     reauthenticate(client, recovery_codes[0])
-    laptop = Authenticator.objects.get(user=account, type=Authenticator.Type.WEBAUTHN)
+    laptop = Authenticator.objects.get(user=user, type=Authenticator.Type.WEBAUTHN)
     _, response = add_passkey_while_signed_in(client, "Phone")
     phone_pk = response.json()["data"]["id"]
 
@@ -236,36 +234,36 @@ def test_one_of_several_second_steps_can_be_removed(client, passkey_account):
     )
 
     assert response.status_code == 409
-    assert Authenticator.objects.filter(user=account, type=Authenticator.Type.WEBAUTHN).count() == 1
+    assert Authenticator.objects.filter(user=user, type=Authenticator.Type.WEBAUTHN).count() == 1
 
 
-def test_removing_the_last_totp_is_refused(client, totp_account):
-    sign_in(client, totp_account.email, PASSWORD)
+def test_removing_the_last_totp_is_refused(client, totp_user):
+    sign_in(client, totp_user.email, PASSWORD)
     client.post(
         f"{API}/auth/2fa/authenticate",
-        {"code": totp_code(totp_secret_of(totp_account))},
+        {"code": totp_code(totp_secret_of(totp_user))},
         content_type="application/json",
     )
-    reauthenticate(client, recovery_codes_of(totp_account)[0])
+    reauthenticate(client, recovery_codes_of(totp_user)[0])
 
     response = client.delete(f"{API}/account/authenticators/totp")
 
     assert response.status_code == 409
-    assert Authenticator.objects.filter(user=totp_account, type=Authenticator.Type.TOTP).exists()
+    assert Authenticator.objects.filter(user=totp_user, type=Authenticator.Type.TOTP).exists()
 
 
-def test_the_mfa_adapter_refuses_removing_the_last_second_step(client, totp_account):
-    totp = Authenticator.objects.get(user=totp_account, type=Authenticator.Type.TOTP)
+def test_the_mfa_adapter_refuses_removing_the_last_second_step(client, totp_user):
+    totp = Authenticator.objects.get(user=totp_user, type=Authenticator.Type.TOTP)
 
     assert not get_mfa_adapter().can_delete_authenticator(totp)
 
-    sign_in(client, totp_account.email, PASSWORD)
+    sign_in(client, totp_user.email, PASSWORD)
     client.post(
         f"{API}/auth/2fa/authenticate",
-        {"code": totp_code(totp_secret_of(totp_account))},
+        {"code": totp_code(totp_secret_of(totp_user))},
         content_type="application/json",
     )
-    reauthenticate(client, recovery_codes_of(totp_account)[0])
+    reauthenticate(client, recovery_codes_of(totp_user)[0])
     add_passkey_while_signed_in(client, "Laptop")
 
     assert get_mfa_adapter().can_delete_authenticator(totp)

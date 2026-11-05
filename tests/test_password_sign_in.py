@@ -8,54 +8,54 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def account():
+def user():
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
 
 
-def test_wrong_password_gets_allauths_error(client, account):
-    response = sign_in(client, account.email, "wrong")
+def test_wrong_password_gets_allauths_error(client, user):
+    response = sign_in(client, user.email, "wrong")
 
     assert response.status_code == 400
     assert response.json()["errors"][0]["code"] == "email_password_mismatch"
     assert not is_signed_in(client)
 
 
-def test_a_linked_account_is_told_to_use_microsoft_signin(client, account):
-    link_microsoft(account)
+def test_a_linked_user_is_told_to_use_microsoft_signin(client, user):
+    link_microsoft(user)
 
-    response = sign_in(client, account.email, PASSWORD)
+    response = sign_in(client, user.email, PASSWORD)
 
     assert response.status_code == 400
     assert response.json()["errors"][0]["code"] == "use_microsoft_signin"
     assert not is_signed_in(client)
 
 
-def test_a_linked_account_with_a_wrong_password_gets_the_usual_error(client, account):
-    link_microsoft(account)
+def test_a_linked_user_with_a_wrong_password_gets_the_usual_error(client, user):
+    link_microsoft(user)
 
-    response = sign_in(client, account.email, "wrong")
+    response = sign_in(client, user.email, "wrong")
 
     assert response.status_code == 400
     assert response.json()["errors"][0]["code"] == "email_password_mismatch"
     assert not is_signed_in(client)
 
 
-def test_repeated_wrong_passwords_lock_out_even_the_right_one(client, account):
+def test_repeated_wrong_passwords_lock_out_even_the_right_one(client, user):
     for _ in range(5):
-        sign_in(client, account.email, "wrong")
+        sign_in(client, user.email, "wrong")
 
-    response = sign_in(client, account.email, PASSWORD)
+    response = sign_in(client, user.email, PASSWORD)
 
     assert response.status_code == 400
     assert response.json()["errors"][0]["code"] == "too_many_login_attempts"
     assert not is_signed_in(client)
 
 
-def test_blocked_account_cannot_sign_in(client, account):
-    account.is_active = False
-    account.save()
+def test_blocked_user_cannot_sign_in(client, user):
+    user.is_active = False
+    user.save()
 
-    sign_in(client, account.email, PASSWORD)
+    sign_in(client, user.email, PASSWORD)
 
     assert not is_signed_in(client)
 
@@ -71,6 +71,6 @@ def test_nobody_can_sign_up_with_a_password(client):
     assert not get_user_model().objects.filter(email="new@example.org").exists()
 
 
-def test_two_accounts_cannot_share_an_email_in_different_letter_case(account):
+def test_two_users_cannot_share_an_email_in_different_letter_case(user):
     with pytest.raises(IntegrityError), transaction.atomic():
         get_user_model().objects.create_user("JANE.DOE@example.org", PASSWORD)

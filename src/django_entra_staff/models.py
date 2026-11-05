@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
-class AccountManager(BaseUserManager):
+class UserManager(BaseUserManager):
     use_in_migrations = True
 
     def get_by_natural_key(self, email):
@@ -14,11 +14,11 @@ class AccountManager(BaseUserManager):
 
     def create_user(self, email, password=None, **fields):
         if not email:
-            raise ValueError("An Account needs an email.")
-        account = self.model(email=self.normalize_email(email), **fields)
-        account.set_password(password)
-        account.save(using=self._db)
-        return account
+            raise ValueError("A User needs an email.")
+        user = self.model(email=self.normalize_email(email), **fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
 
     def create_superuser(self, email, password=None, **fields):
         fields.setdefault("is_staff", True)
@@ -26,8 +26,8 @@ class AccountManager(BaseUserManager):
         return self.create_user(email, password, **fields)
 
 
-class AbstractAccount(AbstractBaseUser, PermissionsMixin):
-    """An Account is one person's record in one App. Blocked means inactive."""
+class AbstractUser(AbstractBaseUser, PermissionsMixin):
+    """A User is one person's record in one App. Blocked means inactive."""
 
     email = models.EmailField(_("email address"), unique=True)
     is_active = models.BooleanField(_("active"), default=True)
@@ -35,7 +35,7 @@ class AbstractAccount(AbstractBaseUser, PermissionsMixin):
     must_replace_password = models.BooleanField(_("must replace password"), default=False)
     date_joined = models.DateTimeField(_("date joined"), default=timezone.now)
 
-    objects = AccountManager()
+    objects = UserManager()
 
     USERNAME_FIELD = "email"
     EMAIL_FIELD = "email"
