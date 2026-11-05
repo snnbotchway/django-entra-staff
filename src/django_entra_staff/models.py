@@ -30,6 +30,9 @@ class AbstractUser(AbstractBaseUser, PermissionsMixin):
     """A User is one person's record in one App. Blocked means inactive."""
 
     email = models.EmailField(_("email address"), unique=True)
+    # As on Django's AbstractUser. A Microsoft sign-in fills them (adapters.py).
+    first_name = models.CharField(_("first name"), max_length=150, blank=True)
+    last_name = models.CharField(_("last name"), max_length=150, blank=True)
     is_active = models.BooleanField(_("active"), default=True)
     is_staff = models.BooleanField(_("Django admin access"), default=False)
     must_replace_password = models.BooleanField(_("must replace password"), default=False)
@@ -51,3 +54,9 @@ class AbstractUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+    def get_full_name(self):
+        return f"{self.first_name} {self.last_name}".strip()
+
+    def get_short_name(self):
+        return self.first_name

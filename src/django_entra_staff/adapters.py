@@ -14,6 +14,9 @@ from .services import has_microsoft_link, set_access_groups
 from .signals import microsoft_link_made, user_signed_up_open_to_staff
 from .stages import ReplacePasswordStage, SecondStepAuthenticateStage, SecondStepSetupStage
 
+# The User fields a Microsoft sign-in fills, under the names allauth gives them.
+NAME_FIELDS = ("first_name", "last_name")
+
 
 def dotted_path(cls) -> str:
     return f"{cls.__module__}.{cls.__qualname__}"
@@ -118,6 +121,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             # The Microsoft link already exists: allauth signs this User in.
             if not sociallogin.user.is_active:
                 raise self.validation_error(Code.USER_BLOCKED)
+            self._refresh_names(sociallogin.user, sociallogin)
             return
         if sociallogin.is_existing:
             # An existing User with no saved link: allauth's own email match
@@ -140,8 +144,29 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         with transaction.atomic():
             sociallogin.connect(request, user)
             user.set_unusable_password()
-            user.save(update_fields=["password"])
+            user.save(update_fields=["password", *self._take_names(user, sociallogin)])
             microsoft_link_made.send(sender=type(user), user=user, acting_user=None)
+
+    def _microsoft_names(self, sociallogin) -> dict[str, str]:
+        """The names in the Microsoft profile of this sign-in. Microsoft is
+        where a person's name is kept, so a name it gives wins; a name it
+        leaves out is not passed on."""
+        account = sociallogin.account
+        fields = account.get_provider().extract_common_fields(account.extra_data)
+        return {name: fields[name] for name in NAME_FIELDS if fields.get(name)}
+
+    def _take_names(self, user, sociallogin) -> list[str]:
+        """Copy the Microsoft names onto the User; the names that changed."""
+        changed = []
+        for name, value in self._microsoft_names(sociallogin).items():
+            if getattr(user, name) != value:
+                setattr(user, name, value)
+                changed.append(name)
+        return changed
+
+    def _refresh_names(self, user, sociallogin) -> None:
+        if changed := self._take_names(user, sociallogin):
+            user.save(update_fields=changed)
 
     def _user_for(self, sociallogin):
         """The one User whose email matches the Microsoft person's work
@@ -161,7 +186,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             # nobody to make a User for.
             raise self.validation_error(Code.NO_WORK_EMAIL)
         with transaction.atomic():
-            user = get_user_model().objects.create_user(email)
+            user = get_user_model().objects.create_user(email, **self._microsoft_names(sociallogin))
             sociallogin.connect(request, user)
             set_access_groups(user, get_settings().lowest_access_group)
             user_signed_up_open_to_staff.send(sender=type(user), user=user, acting_user=None)

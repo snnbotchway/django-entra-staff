@@ -157,9 +157,12 @@ class FakeMicrosoft:
         idp=None,
         process="login",
         provider="microsoft",
+        given_name="Jane",
+        surname="Doe",
     ):
         """`idp` sets the id_token's identity provider claim, as Entra does for a guest.
-        `provider` is the id the App's Microsoft app is registered under."""
+        `provider` is the id the App's Microsoft app is registered under. A name
+        given as None is left out of the profile, as Graph does when it's unset."""
         self.tid = tid or get_settings().tenant_id
         self.uid = uid
         self.idp = idp
@@ -168,9 +171,11 @@ class FakeMicrosoft:
             "mail": email,
             "userPrincipalName": email,
             "mailNickname": email.partition("@")[0],
-            "givenName": "Jane",
-            "surname": "Doe",
         }
+        if given_name is not None:
+            self.profile["givenName"] = given_name
+        if surname is not None:
+            self.profile["surname"] = surname
         started = client.post(
             f"{API}/auth/provider/redirect",
             {"provider": provider, "callback_url": NEXT_URL, "process": process},
