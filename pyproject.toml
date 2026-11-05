@@ -29,6 +29,7 @@ dev = [
     "pytest>=8.3",
     "pytest-django>=4.9",
     "ruff>=0.9",
+    "vulture>=2.16",
 ]
 
 [tool.pytest.ini_options]
@@ -44,3 +45,14 @@ extend-exclude = ["tests/testapp/migrations"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "DJ"]
+
+[tool.vulture]
+# Dead-code check. Django and allauth call most hooks by name (adapter methods,
+# admin options, Meta, settings), so those are listed in vulture_whitelist.py
+# or ignored here by the pattern that makes them framework code.
+paths = ["src", "tests", "vulture_whitelist.py"]
+exclude = ["tests/testapp/migrations/", "tests/testapp/settings.py"]
+ignore_decorators = ["@admin.display", "@admin.action", "@pytest.fixture", "@register"]
+# Django signal receivers take `sender`; system checks take `app_configs`.
+ignore_names = ["sender", "app_configs", "pytestmark", "Meta"]
+min_confidence = 60

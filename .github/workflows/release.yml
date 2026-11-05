@@ -45,6 +45,7 @@ jobs:
         if: github.event_name == 'push'
         run: test "v$(uv version --short)" = "${GITHUB_REF_NAME}"
       - run: uv run ruff check .
+      - run: uv run vulture
       - run: uv run pytest
       - run: uv build --no-sources
       - name: Commit the bump and tag it

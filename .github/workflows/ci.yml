@@ -16,6 +16,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      - run: uv run vulture
 
   test:
     runs-on: ubuntu-latest
