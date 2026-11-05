@@ -50,7 +50,7 @@ class CheckId(StrEnum):
     BAD_ACCESS_GROUPS = "entra_staff.E006"
     LOWEST_ACCESS_GROUP_NOT_DECLARED = "entra_staff.E008"
     OPEN_TO_STAFF_NEEDS_LOWEST_ACCESS_GROUP = "entra_staff.E009"
-    USER_MODEL_NOT_A_PACKAGE_USER = "entra_staff.E010"
+    USER_MODEL_NOT_THE_PACKAGES = "entra_staff.E010"
     ACCOUNT_ADAPTER_NOT_THE_PACKAGES = "entra_staff.E011"
     MICROSOFT_PROVIDER_NOT_THE_PACKAGES = "entra_staff.E012"
     MICROSOFT_NEEDS_TENANT_ID = "entra_staff.E013"

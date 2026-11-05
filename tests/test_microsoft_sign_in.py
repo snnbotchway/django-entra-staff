@@ -86,7 +86,7 @@ def test_second_sign_in_uses_the_link_and_ignores_the_email(
     assert len(link_made_events) == 1
 
 
-def test_an_user_already_linked_to_another_microsoft_person_is_refused(microsoft, client, user):
+def test_a_user_already_linked_to_another_microsoft_person_is_refused(microsoft, client, user):
     microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-1")
     client.logout()
 
@@ -240,7 +240,7 @@ def test_allauths_email_match_still_links_the_user_and_removes_the_password(
 
 
 @pytest.mark.usefixtures("email_authentication_forced_on")
-def test_allauths_email_match_does_not_sign_in_to_an_user_linked_to_another_person(
+def test_allauths_email_match_does_not_sign_in_to_a_user_linked_to_another_person(
     microsoft, client, lowercase_user
 ):
     microsoft.sign_in(client, email="jane.doe@example.org", uid="uid-1")

@@ -52,7 +52,7 @@ def test_set_temporary_password_sets_the_password_and_the_flag_together(
     ]
 
 
-def test_set_temporary_password_refuses_an_user_with_a_microsoft_link(
+def test_set_temporary_password_refuses_a_user_with_a_microsoft_link(
     microsoft, client, temporary_password_events
 ):
     user = get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)

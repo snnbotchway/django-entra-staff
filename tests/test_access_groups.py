@@ -42,7 +42,7 @@ def test_declared_access_groups_exist_after_migrations():
     assert set(Group.objects.values_list("name", flat=True)) == {"viewer", "editor", "manager"}
 
 
-def test_invite_creates_an_user_with_the_groups_and_no_password(sent, admin_user):
+def test_invite_creates_a_user_with_the_groups_and_no_password(sent, admin_user):
     sent.clear()
 
     user = services.invite_user(
@@ -67,7 +67,7 @@ def test_invite_creates_an_user_with_the_groups_and_no_password(sent, admin_user
     ]
 
 
-def test_invite_refuses_an_email_that_already_has_an_user_whatever_its_case(admin_user):
+def test_invite_refuses_an_email_that_already_has_a_user_whatever_its_case(admin_user):
     with pytest.raises(StaffError) as refused:
         services.invite_user("BOSS@example.com", ["viewer"])
 

@@ -60,7 +60,7 @@ def test_missing_settings_dict_is_refused():
         assert "entra_staff.E001" in {message.id for message in check_settings(None)}
 
 
-def test_user_model_must_be_an_user():
+def test_user_model_must_be_a_user():
     assert "entra_staff.E010" in check_ids(AUTH_USER_MODEL="auth.User")
 
 

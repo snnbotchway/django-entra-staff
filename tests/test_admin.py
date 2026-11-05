@@ -556,7 +556,7 @@ def test_an_exclusive_invite_needs_exactly_one_access_group(it_client):
     assert held(get_user_model().objects.get(email="new@example.org")) == {"editor"}
 
 
-def test_clearing_an_user_with_no_second_step_changes_nothing(user, sent):
+def test_clearing_a_user_with_no_second_step_changes_nothing(user, sent):
     assert services.clear_authenticators(user) is False
     assert sent == []
 
