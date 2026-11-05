@@ -202,7 +202,7 @@ class FakeMicrosoft:
 def microsoft():
     fake = FakeMicrosoft()
 
-    def request(session, method, url, **kwargs):
+    def request(_session, method, url, **kwargs):
         return fake.route(method, url)
 
     with mock.patch.object(requests.Session, "request", request):

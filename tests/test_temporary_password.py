@@ -69,9 +69,8 @@ def test_set_temporary_password_refuses_an_account_with_a_microsoft_link(
     assert temporary_password_events == []
 
 
-def test_a_temporary_password_is_replaced_after_the_second_step(
-    client, temp_password_account, second_step
-):
+@pytest.mark.usefixtures("second_step")
+def test_a_temporary_password_is_replaced_after_the_second_step(client, temp_password_account):
     response = sign_in(client, temp_password_account.email, TEMP_PASSWORD)
 
     assert response.status_code == 401
@@ -135,9 +134,8 @@ def test_second_step_set_up_comes_before_replacing_the_temporary_password(
     assert is_signed_in(client)
 
 
-def test_the_new_password_must_pass_the_app_s_password_rules(
-    client, temp_password_account, second_step
-):
+@pytest.mark.usefixtures("second_step")
+def test_the_new_password_must_pass_the_app_s_password_rules(client, temp_password_account):
     sign_in(client, temp_password_account.email, TEMP_PASSWORD)
     client.post(
         f"{API}/auth/2fa/authenticate",
