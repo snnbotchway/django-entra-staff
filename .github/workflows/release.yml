@@ -1,23 +1,56 @@
 name: Release
 
+# Run it from Actions → Release → Run workflow and pick how big the release is.
+# It bumps the version, tests and builds, then commits the bump and tags it on
+# main, and waits for a maintainer to approve publishing to PyPI. Pushing a `v*`
+# tag by hand still works: it skips the bump and checks the tag instead.
 on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "patch = fixes, minor = new features, major = changes that break Apps"
+        type: choice
+        options: [patch, minor, major]
+        default: patch
   push:
     tags: ["v*"]
 
 permissions:
   contents: read
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      - name: Releases are cut from main
+        if: github.event_name == 'workflow_dispatch'
+        run: test "${GITHUB_REF}" = "refs/heads/main"
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+      - name: Bump the version
+        if: github.event_name == 'workflow_dispatch'
+        run: uv version --bump "${{ inputs.bump }}"
       - name: The tag must name the version in pyproject.toml
+        if: github.event_name == 'push'
         run: test "v$(uv version --short)" = "${GITHUB_REF_NAME}"
       - run: uv run ruff check .
       - run: uv run pytest
       - run: uv build --no-sources
+      - name: Commit the bump and tag it
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          version="$(uv version --short)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Release v${version}" -- pyproject.toml uv.lock
+          git tag "v${version}"
+          git push origin HEAD:main "v${version}"
       - uses: actions/upload-artifact@v4
         with:
           name: dist
