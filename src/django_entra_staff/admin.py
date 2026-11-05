@@ -34,6 +34,7 @@ class TemporaryPasswordForm(forms.Form):
 
 
 ONE_ACCESS_GROUP = _("Choose exactly one Access group.")
+NAMES_FROM_MICROSOFT = _("Updated from Microsoft at each Microsoft sign-in.")
 
 
 class AccessGroupsForm(forms.ModelForm):
@@ -50,6 +51,8 @@ class AccessGroupsForm(forms.ModelForm):
 class UserChangeForm(AccessGroupsForm):
     class Meta:
         help_texts = {
+            "first_name": NAMES_FROM_MICROSOFT,
+            "last_name": NAMES_FROM_MICROSOFT,
             "is_active": _("Untick to block them from signing in."),
             "is_superuser": _("Has every Django admin permission without being given each one."),
         }
@@ -96,6 +99,7 @@ class UserAdmin(auth_admin.UserAdmin):
     add_form = InviteForm
     fieldsets = (
         (None, {"fields": ("email",)}),
+        (_("Personal info"), {"fields": ("first_name", "last_name")}),
         (
             _("Permissions"),
             {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")},
@@ -114,6 +118,8 @@ class UserAdmin(auth_admin.UserAdmin):
     )
     list_display = (
         "email",
+        "first_name",
+        "last_name",
         "access_groups",
         "microsoft_link",
         "password_status",
@@ -121,7 +127,7 @@ class UserAdmin(auth_admin.UserAdmin):
         "is_active",
         "last_sign_in",
     )
-    search_fields = ("email",)
+    search_fields = ("email", "first_name", "last_name")
     ordering = ("email",)
     actions = (
         "block_users",

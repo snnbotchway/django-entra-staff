@@ -587,3 +587,23 @@ def test_an_unlinked_it_person_changes_their_own_password_in_the_admin(it_client
     it.refresh_from_db()
     assert response.status_code == 302
     assert it.check_password(NEW_OWN)
+
+
+def test_it_edits_names_on_the_change_page(it_client, user):
+    post_change(it_client, user, first_name="Ama", last_name="Mensah")
+
+    user.refresh_from_db()
+    assert (user.first_name, user.last_name) == ("Ama", "Mensah")
+
+
+def test_the_changelist_shows_names_and_finds_people_by_them(it_client, user):
+    get_user_model().objects.create_user("other@example.org", first_name="Kofi", last_name="Owusu")
+    user.first_name, user.last_name = "Ama", "Mensah"
+    user.save()
+
+    response = it_client.get(reverse("admin:testapp_user_changelist"), {"q": "mensah"})
+
+    row = row_of(response, user.email)
+    assert "Ama" in row
+    assert "Mensah" in row
+    assert "other@example.org" not in response.content.decode()
