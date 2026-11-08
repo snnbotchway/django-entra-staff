@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Lint the staged Python files with the locked ruff, so lint errors show at commit time
+# instead of in CI. The global git hook runs this file; nothing to install per clone.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+mapfile -t files < <(git diff --cached --name-only --diff-filter=ACMR -- '*.py')
+(( ${#files[@]} )) || exit 0
+uv run ruff check --force-exclude "${files[@]}"
+uv run ruff format --check --force-exclude "${files[@]}"
