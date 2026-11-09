@@ -159,7 +159,11 @@ def _random_password() -> str:
 @transaction.atomic
 def give_temporary_password(user, *, acting_user) -> str:
     """Make a random Temporary password for the User and return it, once, for an
-    App admin to share. Nothing keeps it, and no signal carries it."""
+    App admin to share. Nothing keeps it, and no signal carries it.
+
+    `user` is reloaded with its row locked, so a sign-in or Password reset that
+    happens meanwhile is seen, not overwritten."""
+    type(user).objects.select_for_update().get(pk=user.pk)
     user.refresh_from_db()
     _refuse_microsoft_linked(user)
     if user.is_staff or user.is_superuser:
@@ -170,7 +174,7 @@ def give_temporary_password(user, *, acting_user) -> str:
     if _is_in_use(user):
         raise StaffError(
             ErrorCode.USER_IN_USE,
-            "The User already signs in with a password; only IT can give it a new one.",
+            "The User is already in use; only IT can give it a Temporary password.",
         )
     password = _password_the_app_accepts(user)
     _save_temporary_password(user, password, acting_user)
@@ -206,7 +210,8 @@ def _password_the_app_accepts(user) -> str:
         return password
     raise ImproperlyConfigured(
         "AUTH_PASSWORD_VALIDATORS refuse the Temporary passwords the package makes:"
-        " four groups of five lowercase letters and digits, joined by hyphens."
+        f" {_PASSWORD_GROUPS} groups of {_PASSWORD_GROUP_LENGTH} lowercase letters and"
+        " digits, joined by hyphens."
     )
 
 

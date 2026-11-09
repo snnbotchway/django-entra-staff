@@ -205,10 +205,6 @@ def test_an_app_admin_gives_a_new_person_a_temporary_password_to_share(
     assert all(password not in event.values() for event in temporary_password_events)
 
 
-def _linked(user):
-    link_microsoft(user)
-
-
 def _chose_a_password(user):
     user.set_password(PASSWORD)
     user.save()
@@ -227,7 +223,7 @@ def _has_django_admin_access(user):
 @pytest.mark.parametrize(
     ("make", "code"),
     [
-        (_linked, "microsoft_linked"),
+        (link_microsoft, "microsoft_linked"),
         (_chose_a_password, "user_in_use"),
         (_set_up_a_second_step, "user_in_use"),
         (_has_django_admin_access, "django_admin_access"),
