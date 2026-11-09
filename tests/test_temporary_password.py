@@ -7,6 +7,8 @@ import pytest
 from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
 from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ImproperlyConfigured, ValidationError
+from django.test import override_settings
 from django.utils import timezone
 
 from django_entra_staff import services
@@ -267,3 +269,60 @@ def test_a_temporary_password_stops_working_after_its_lifetime(client, temp_pass
     assert response.status_code == 400
     assert response.json()["errors"][0]["code"] == "temporary_password_expired"
     assert not is_signed_in(client)
+
+
+def test_an_app_admin_cannot_give_a_password_to_someone_who_signed_in_with_microsoft(
+    microsoft, client, app_admin
+):
+    user = get_user_model().objects.create_user("jane.doe@example.org")
+    microsoft.sign_in(client, email=user.email)
+    services.remove_microsoft_link(user)
+
+    with pytest.raises(StaffError) as refused:
+        services.give_temporary_password(user, acting_user=app_admin)
+
+    assert refused.value.code == "user_in_use"
+
+
+def test_a_temporary_password_set_before_its_time_was_recorded_has_expired(
+    client, temp_password_user
+):
+    get_user_model().objects.filter(pk=temp_password_user.pk).update(temporary_password_set_at=None)
+
+    response = sign_in(client, temp_password_user.email, TEMP_PASSWORD)
+
+    assert response.status_code == 400
+    assert response.json()["errors"][0]["code"] == "temporary_password_expired"
+
+
+def test_an_app_admin_cannot_give_a_password_to_someone_who_chose_one_since_it_was_read(
+    app_admin,
+):
+    user = get_user_model().objects.create_user("jane.doe@example.org")
+    stale = get_user_model().objects.get(pk=user.pk)
+    user.set_password(PASSWORD)
+    user.save()
+
+    with pytest.raises(StaffError) as refused:
+        services.give_temporary_password(stale, acting_user=app_admin)
+
+    assert refused.value.code == "user_in_use"
+    assert get_user_model().objects.get(pk=user.pk).check_password(PASSWORD)
+
+
+class NeedsAnUppercaseLetter:
+    def validate(self, password, user=None):
+        if password.islower():
+            raise ValidationError("Needs an uppercase letter.", code="needs_uppercase")
+
+
+@override_settings(
+    AUTH_PASSWORD_VALIDATORS=[{"NAME": f"{__name__}.{NeedsAnUppercaseLetter.__qualname__}"}]
+)
+def test_password_rules_that_refuse_every_made_password_are_a_setup_error(app_admin):
+    user = get_user_model().objects.create_user("jane.doe@example.org")
+
+    with pytest.raises(ImproperlyConfigured):
+        services.give_temporary_password(user, acting_user=app_admin)
+
+    assert not get_user_model().objects.get(pk=user.pk).has_usable_password()

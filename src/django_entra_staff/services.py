@@ -17,6 +17,7 @@ from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import transaction
 from django.utils import timezone
 
@@ -159,29 +160,54 @@ def _random_password() -> str:
 def give_temporary_password(user, *, acting_user) -> str:
     """Make a random Temporary password for the User and return it, once, for an
     App admin to share. Nothing keeps it, and no signal carries it."""
+    user.refresh_from_db()
     _refuse_microsoft_linked(user)
     if user.is_staff or user.is_superuser:
         raise StaffError(
             ErrorCode.DJANGO_ADMIN_ACCESS,
             "Only IT gives a password to a User with Django admin access.",
         )
-    if _has_used_a_password(user):
+    if _is_in_use(user):
         raise StaffError(
             ErrorCode.USER_IN_USE,
             "The User already signs in with a password; only IT can give it a new one.",
         )
-    password = _random_password()
-    validate_password(password, user)
+    password = _password_the_app_accepts(user)
     _save_temporary_password(user, password, acting_user)
     return password
 
 
-def _has_used_a_password(user) -> bool:
-    """Whether the person has a password they chose or any Second step, so a
-    password from someone else would let that someone into a User in use.
-    Testing only the Second step would miss a User whose Second step IT cleared."""
+def _is_in_use(user) -> bool:
+    """Whether the person has ever signed in, chosen a password or set up a
+    Second step, so a password from someone else would let that someone into a
+    User in use. Each counts on its own: IT can clear a Second step or a
+    Microsoft link and leave the rest, and a Password reset chooses a password
+    without signing in."""
     chose_a_password = user.has_usable_password() and not user.must_replace_password
-    return chose_a_password or Authenticator.objects.filter(user=user).exists()
+    return (
+        user.last_login is not None
+        or chose_a_password
+        or Authenticator.objects.filter(user=user).exists()
+    )
+
+
+# A rule asking for a digit refuses about one made password in 400; ten tries
+# make that negligible, while rules no made password can pass still fail fast.
+_PASSWORD_TRIES = 10
+
+
+def _password_the_app_accepts(user) -> str:
+    for _ in range(_PASSWORD_TRIES):
+        password = _random_password()
+        try:
+            validate_password(password, user)
+        except ValidationError:
+            continue
+        return password
+    raise ImproperlyConfigured(
+        "AUTH_PASSWORD_VALIDATORS refuse the Temporary passwords the package makes:"
+        " four groups of five lowercase letters and digits, joined by hyphens."
+    )
 
 
 def _save_temporary_password(user, password: str, acting_user) -> None:
@@ -213,6 +239,7 @@ def remove_microsoft_link(user, *, acting_user=None) -> bool:
 
     The User keeps no password: the person signs in through Microsoft sign-in,
     or IT gives them a Temporary password, which is allowed once the link is gone.
+    An App admin cannot, because the person has signed in before.
     Returns whether a link was removed; the signal is sent only then.
     """
     removed = _microsoft_links(user).delete()[0]

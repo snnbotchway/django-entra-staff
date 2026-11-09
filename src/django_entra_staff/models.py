@@ -36,7 +36,7 @@ class AbstractUser(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(_("active"), default=True)
     is_staff = models.BooleanField(_("Django admin access"), default=False)
     must_replace_password = models.BooleanField(_("must replace password"), default=False)
-    # When the current Temporary password was set; it stops working after
+    # When the last Temporary password was set; it stops working after
     # ENTRA_STAFF["TEMPORARY_PASSWORD_LIFETIME"].
     temporary_password_set_at = models.DateTimeField(
         _("Temporary password set at"), null=True, blank=True, editable=False
