@@ -33,7 +33,7 @@ The extra proof, after the password, that a Password sign-in needs before it ope
 _Avoid_: 2FA, OTP (when meaning the whole step)
 
 **Temporary password**:
-A password set on a User by IT, or given by an App admin to someone who has never signed in. The person must replace it at their next Password sign-in, and it stops working after a set time.
+A password set on a User by IT, or given by an App admin to someone who has not used their User yet. The person must replace it at their next Password sign-in, and it stops working after a set time.
 _Avoid_: Default password, initial password
 
 **Password reset**:
@@ -51,7 +51,7 @@ The one Access group an App names as the least it grants, given to every User th
 _Avoid_: Default group, base role
 
 **App admin**:
-An Access group whose members manage people and data inside the App's own screens. App admins never see a password in use; they can only give a Temporary password to someone who has never signed in.
+An Access group whose members manage people and data inside the App's own screens. App admins never see a password in use; they can only give a Temporary password to someone who has not used their User yet.
 _Avoid_: Administrator, superuser, staff
 
 **Django admin access**:
