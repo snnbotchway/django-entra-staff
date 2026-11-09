@@ -37,7 +37,7 @@ def test_a_token_from_another_tenant_is_refused(microsoft, client):
 def test_a_guest_of_the_tenant_is_refused(microsoft, client, user, idp):
     response = microsoft.sign_in(client, email="jane.doe@example.org", idp=idp)
 
-    assert error_code(response) == "unknown"
+    assert error_code(response) == "guest_account"
     assert not is_signed_in(client)
     assert not SocialAccount.objects.exists()
 

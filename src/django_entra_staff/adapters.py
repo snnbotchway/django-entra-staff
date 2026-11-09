@@ -1,4 +1,5 @@
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.headless.socialaccount import internal as headless_socialaccount
 from allauth.mfa.adapter import DefaultMFAAdapter
 from allauth.mfa.models import Authenticator
 from allauth.mfa.stages import AuthenticateStage as AllauthAuthenticateStage
@@ -10,6 +11,7 @@ from django.utils.translation import gettext_lazy as _
 
 from .conf import SignUpRule, get_settings
 from .errors import SignInErrorCode as Code
+from .providers.microsoft.views import GuestAccountError
 from .services import has_microsoft_link, set_access_groups
 from .signals import microsoft_link_made, user_signed_up_open_to_staff
 from .stages import ReplacePasswordStage, SecondStepAuthenticateStage, SecondStepSetupStage
@@ -104,6 +106,25 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             "Your Microsoft account cannot be removed here. Ask IT to remove it."
         ),
     }
+
+    def on_authentication_error(
+        self, request, provider, error=None, exception=None, extra_context=None
+    ):
+        """A guest of the tenant gets its own code, so the App can tell them
+        to ask for a member account or a password User. allauth reports every
+        token failure as `unknown`, so the package sends the redirect itself,
+        the way allauth's headless flow does."""
+        super().on_authentication_error(
+            request, provider, error=error, exception=exception, extra_context=extra_context
+        )
+        if isinstance(exception, GuestAccountError):
+            headless_socialaccount.on_authentication_error(
+                request,
+                provider,
+                error=Code.GUEST_ACCOUNT,
+                exception=exception,
+                extra_context=extra_context,
+            )
 
     def validate_disconnect(self, account, accounts):
         """Only IT removes a Microsoft link, through `services.remove_microsoft_link`:

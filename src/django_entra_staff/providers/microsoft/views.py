@@ -15,6 +15,10 @@ from django_entra_staff.conf import MICROSOFT_NEEDS_TENANT_ID_MESSAGE, get_setti
 DEFAULT_LOGIN_URL = "https://login.microsoftonline.com"
 
 
+class GuestAccountError(OAuth2Error):
+    """The id_token belongs to a guest of the tenant (ADR 0003)."""
+
+
 class MicrosoftGraphOAuth2Adapter(AllauthMicrosoftGraphOAuth2Adapter):
     """The Microsoft Graph adapter, verifying the id_token's tenant.
 
@@ -58,7 +62,7 @@ class MicrosoftGraphOAuth2Adapter(AllauthMicrosoftGraphOAuth2Adapter):
         # another tenant's STS URI or `live.com` for a guest.
         idp = claims.get("idp")
         if idp is not None and idp != issuer:
-            raise OAuth2Error("The id_token belongs to a guest of the tenant.")
+            raise GuestAccountError("The id_token belongs to a guest of the tenant.")
 
 
 oauth2_login = OAuth2LoginView.adapter_view(MicrosoftGraphOAuth2Adapter)

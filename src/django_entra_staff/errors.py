@@ -22,6 +22,7 @@ class SignInErrorCode(StrEnum):
     INVITE_ONLY = "invite_only"
     NO_WORK_EMAIL = "no_work_email"
     USER_ALREADY_LINKED = "user_already_linked"
+    GUEST_ACCOUNT = "guest_account"
     CONNECT_NOT_SUPPORTED = "connect_not_supported"
     DISCONNECT_NOT_SUPPORTED = "disconnect_not_supported"
     EMAIL_CHANGE_NOT_SUPPORTED = "email_change_not_supported"
