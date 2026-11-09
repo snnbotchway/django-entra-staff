@@ -164,9 +164,10 @@ Refusals come back to the page named in `socialaccount_login_error` as `?error=<
 | `user_blocked` | The User is blocked. |
 | `user_already_linked` | The User with this email is already linked to a different Microsoft person. |
 | `no_work_email` | Microsoft gave no email address (Open to staff only). |
+| `guest_account` | The person is a guest of your tenant, not a member. Tell them to ask IT for a member account or a password User. |
 | `connect_not_supported` | Someone asked to connect a Microsoft account by hand. Links are made only at first sign-in. |
 
-Any other failure, such as a token from the wrong tenant or from a guest, comes back as `error=unknown`.
+Any other failure, such as a token from the wrong tenant, comes back as `error=unknown`.
 
 ### Django admin
 
@@ -279,6 +280,10 @@ All text the package shows goes through Django translation, and no wording names
 - **Error messages** (such as "Use Microsoft sign-in for this account."): translate them in your own locale catalog (listed in `LOCALE_PATHS`), or subclass the adapters and change `error_messages`.
 - **Emails** (Password reset, and allauth's notices when an authenticator or passkey is added or removed) are allauth's templates, `account/email/*` and `mfa/email/*`. Override one by adding a template with the same name in a template directory listed in `TEMPLATES["DIRS"]`, which Django searches before installed apps.
 - The Temporary password form in the Django admin is the only template the package ships (see above).
+
+## Upgrading from 0.3
+
+A guest of your tenant is still refused at Microsoft sign-in, but now with `error=guest_account` instead of `error=unknown`. Show your own wording for it on the page named in `socialaccount_login_error`.
 
 ## Upgrading from 0.2
 
