@@ -2,8 +2,9 @@
 
 Each function enforces the package's rules, raises `StaffError` with a stable `ErrorCode` when
 it refuses, and sends its signal (see `signals`) once the change is saved. Only
-`set_temporary_password` takes a password — the Temporary password IT hands out; no function
-returns password data, and none of them touches Django admin access.
+`set_temporary_password` takes a password (the Temporary password IT hands out), and only
+`give_temporary_password` returns one (the Temporary password it made for an App admin to
+share). None of them touches Django admin access.
 
 `acting_user` is the User making the change; it is only carried to the signals.
 """

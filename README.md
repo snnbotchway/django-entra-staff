@@ -89,12 +89,15 @@ Leave out `django_entra_staff.providers.microsoft` and its URL line if the App h
 ### Package settings
 
 ```python
+from datetime import timedelta
+
 ENTRA_STAFF = {
     "TENANT_ID": "00000000-0000-0000-0000-000000000000",
     "SIGN_UP_RULE": "invite_only",
     "ACCESS_GROUPS": ["viewer", "editor", "manager"],
     "GROUP_MODE": "adding",
     "LOWEST_ACCESS_GROUP": "viewer",
+    "TEMPORARY_PASSWORD_LIFETIME": timedelta(days=7),
 }
 ```
 
@@ -105,6 +108,7 @@ ENTRA_STAFF = {
 | `ACCESS_GROUPS` | Required. The App's Access groups, created as Django groups after every `migrate`. |
 | `GROUP_MODE` | `"adding"` (default): a User may hold several Access groups. `"exclusive"`: exactly one. |
 | `LOWEST_ACCESS_GROUP` | The group Open to staff sign-ups get. Required for `open_to_staff`. |
+| `TEMPORARY_PASSWORD_LIFETIME` | A `timedelta` (default 7 days). A Temporary password stops working this long after it was set. |
 
 The group names are yours; the package names none. Unknown keys are refused.
 
@@ -214,7 +218,7 @@ The App's frontend calls allauth's headless browser API under `/_allauth/browser
 
 | Path | Use |
 |---|---|
-| `POST auth/login` | Password sign-in (email, password). A User with a Microsoft link gets `use_microsoft_signin`, but only when the password was right; otherwise the ordinary `email_password_mismatch`. |
+| `POST auth/login` | Password sign-in (email, password). A User with a Microsoft link gets `use_microsoft_signin`, and an expired Temporary password gets `temporary_password_expired`, but only when the password was right; otherwise the ordinary `email_password_mismatch`. |
 | `POST auth/provider/redirect` | Start Microsoft sign-in (`provider`: `microsoft`, `callback_url`, `process`: `login`), as a form post. |
 | `POST auth/password/request`, `POST auth/password/reset` | Password reset. The request answers the same whether or not the email exists or can be reset. |
 | `POST auth/2fa/authenticate` | Second step with an authenticator code or a recovery code. |
@@ -239,14 +243,17 @@ Use these from the App's own screens, commands and tests, never the models and a
 | `set_access_groups(user, access_groups, *, acting_user=None)` | Replaces the User's Access groups. |
 | `block_user(user, *, acting_user=None)`, `unblock_user(...)` | Stops and restores sign-in. |
 | `set_temporary_password(user, password, *, acting_user=None)` | For the Django admin only. Refused for a linked User. |
+| `give_temporary_password(user, *, acting_user)` | For an App admin's screens. Makes a random Temporary password, saves it and returns it once, for the App admin to share. Refused for a linked User (`microsoft_linked`), for a person who has already used a password, meaning they chose one or have any Second step (`user_in_use`), and for a User with Django admin access (`django_admin_access`). Your screen decides who may call it. |
 | `clear_authenticators(user, *, acting_user=None)` | Removes all authenticators, passkeys and recovery codes; returns whether anything was removed, and sends its signal only then. |
 | `remove_microsoft_link(user, *, acting_user=None)` | Lets the next Microsoft sign-in link again. The User keeps no password. |
 | `has_access_group(user, access_group)` | Whether the User holds the group; `False` when not signed in. |
 | `has_microsoft_link(user)` | Whether the User has a Microsoft link, so it can never have a password. |
 
-Error codes: `undeclared_access_group`, `exclusive_needs_one_group`, `user_exists`, `microsoft_linked`.
+Error codes: `undeclared_access_group`, `exclusive_needs_one_group`, `user_exists`, `microsoft_linked`, `user_in_use`, `django_admin_access`.
 
-Only `set_temporary_password` takes a password. No function returns password data, and none touches Django admin access.
+Only `set_temporary_password` takes a password, and only `give_temporary_password` returns one. None touches Django admin access.
+
+To add a person who has no work Microsoft account, call `invite_user` and then `give_temporary_password` inside one `transaction.atomic()`, and show the password once.
 
 ## Signals
 
@@ -258,7 +265,7 @@ In `django_entra_staff.signals`. Each is sent with the User class as `sender`, a
 | `user_signed_up_open_to_staff` | Open to staff made a User. |
 | `access_groups_changed` | Access groups changed. Also has `previous_groups` and `groups` (frozensets). |
 | `user_blocked`, `user_unblocked` | A User was blocked or unblocked. |
-| `temporary_password_set` | IT set a Temporary password. |
+| `temporary_password_set` | IT set, or an App admin gave, a Temporary password. `acting_user` is who did it; the password is never sent. |
 | `authenticators_cleared` | IT cleared a User's authenticators, passkeys and recovery codes. |
 | `microsoft_link_removed` | IT removed a User's Microsoft link. Not sent when there was none. |
 
@@ -280,6 +287,10 @@ All text the package shows goes through Django translation, and no wording names
 - **Error messages** (such as "Use Microsoft sign-in for this account."): translate them in your own locale catalog (listed in `LOCALE_PATHS`), or subclass the adapters and change `error_messages`.
 - **Emails** (Password reset, and allauth's notices when an authenticator or passkey is added or removed) are allauth's templates, `account/email/*` and `mfa/email/*`. Override one by adding a template with the same name in a template directory listed in `TEMPLATES["DIRS"]`, which Django searches before installed apps.
 - The Temporary password form in the Django admin is the only template the package ships (see above).
+
+## Upgrading from 0.4
+
+0.5 adds `temporary_password_set_at` to `AbstractUser`. Run `makemigrations` and `migrate`. Temporary passwords now stop working after `TEMPORARY_PASSWORD_LIFETIME` (7 days by default), and one set before 0.5 counts as expired: set a new one for anyone still waiting to sign in. Show your own wording for `temporary_password_expired` on the sign-in page. App admins can now give Temporary passwords through `give_temporary_password` ([ADR 0010](docs/adr/0010-app-admins-give-first-temporary-passwords.md)).
 
 ## Upgrading from 0.3
 
