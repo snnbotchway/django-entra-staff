@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest import mock
 
 import pytest
@@ -48,6 +49,8 @@ def test_microsoft_sign_in_needs_the_tenant_id():
         (staff(ACCESS_GROUPS=["viewer", "viewer"]), "entra_staff.E006"),
         (staff(LOWEST_ACCESS_GROUP="guest"), "entra_staff.E008"),
         (staff(SIGN_UP_RULE="open_to_staff", LOWEST_ACCESS_GROUP=None), "entra_staff.E009"),
+        (staff(TEMPORARY_PASSWORD_LIFETIME=7), "entra_staff.E031"),
+        (staff(TEMPORARY_PASSWORD_LIFETIME=timedelta(0)), "entra_staff.E031"),
     ],
 )
 def test_inconsistent_settings_dict_is_refused(bad, expected):

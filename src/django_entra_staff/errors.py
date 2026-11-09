@@ -28,6 +28,7 @@ class SignInErrorCode(StrEnum):
     CONNECT_NOT_SUPPORTED = "connect_not_supported"
     DISCONNECT_NOT_SUPPORTED = "disconnect_not_supported"
     EMAIL_CHANGE_NOT_SUPPORTED = "email_change_not_supported"
+    TEMPORARY_PASSWORD_EXPIRED = "temporary_password_expired"
 
 
 class StaffError(Exception):

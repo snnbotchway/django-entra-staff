@@ -17,6 +17,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
+from django.utils import timezone
 
 from . import signals
 from .conf import SETTING_NAME, GroupMode, get_settings
@@ -185,7 +186,8 @@ def _has_used_a_password(user) -> bool:
 def _save_temporary_password(user, password: str, acting_user) -> None:
     user.set_password(password)
     user.must_replace_password = True
-    user.save(update_fields=["password", "must_replace_password"])
+    user.temporary_password_set_at = timezone.now()
+    user.save(update_fields=["password", "must_replace_password", "temporary_password_set_at"])
     signals.temporary_password_set.send(sender=type(user), user=user, acting_user=acting_user)
 
 
@@ -217,6 +219,16 @@ def remove_microsoft_link(user, *, acting_user=None) -> bool:
         return False
     signals.microsoft_link_removed.send(sender=type(user), user=user, acting_user=acting_user)
     return True
+
+
+def has_expired_temporary_password(user) -> bool:
+    """Whether the User's password is a Temporary password older than its
+    lifetime. One set before the package recorded the time counts as expired."""
+    if not user.must_replace_password:
+        return False
+    set_at = user.temporary_password_set_at
+    lifetime = get_settings().temporary_password_lifetime
+    return set_at is None or timezone.now() - set_at > lifetime
 
 
 def has_access_group(user, access_group: str) -> bool:

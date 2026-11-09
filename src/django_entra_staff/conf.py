@@ -1,6 +1,7 @@
 """The package's one settings dict, `ENTRA_STAFF`, and the rules it must follow."""
 
 from dataclasses import dataclass
+from datetime import timedelta
 from enum import StrEnum
 from typing import NamedTuple
 
@@ -33,11 +34,13 @@ class SettingKey(StrEnum):
     ACCESS_GROUPS = "ACCESS_GROUPS"
     GROUP_MODE = "GROUP_MODE"
     LOWEST_ACCESS_GROUP = "LOWEST_ACCESS_GROUP"
+    TEMPORARY_PASSWORD_LIFETIME = "TEMPORARY_PASSWORD_LIFETIME"
 
 
 DEFAULTS = {
     SettingKey.SIGN_UP_RULE: SignUpRule.INVITE_ONLY,
     SettingKey.GROUP_MODE: GroupMode.ADDING,
+    SettingKey.TEMPORARY_PASSWORD_LIFETIME: timedelta(days=7),
 }
 
 
@@ -71,6 +74,7 @@ class CheckId(StrEnum):
     MICROSOFT_PROVIDER_ID_CHANGED = "entra_staff.E028"
     EMAIL_CHANGE_WHILE_VERIFYING_ON = "entra_staff.E029"
     OTHER_PROVIDER_INSTALLED = "entra_staff.E030"
+    BAD_TEMPORARY_PASSWORD_LIFETIME = "entra_staff.E031"  # ggignore: a check id
 
 
 class Problem(NamedTuple):
@@ -85,6 +89,7 @@ class StaffSettings:
     access_groups: tuple[str, ...]
     group_mode: GroupMode
     lowest_access_group: str | None
+    temporary_password_lifetime: timedelta  # ggignore: a duration
 
 
 MICROSOFT_NEEDS_TENANT_ID_MESSAGE = (
@@ -133,6 +138,17 @@ def validate(raw: object) -> list[Problem]:
             Problem(
                 CheckId.BAD_GROUP_MODE,
                 f"{SettingKey.GROUP_MODE} must be one of {_values(GroupMode)}.",
+            )
+        )
+
+    lifetime = raw.get(
+        SettingKey.TEMPORARY_PASSWORD_LIFETIME, DEFAULTS[SettingKey.TEMPORARY_PASSWORD_LIFETIME]
+    )
+    if not (isinstance(lifetime, timedelta) and lifetime > timedelta(0)):
+        problems.append(
+            Problem(
+                CheckId.BAD_TEMPORARY_PASSWORD_LIFETIME,
+                f"{SettingKey.TEMPORARY_PASSWORD_LIFETIME} must be a positive timedelta.",
             )
         )
 
@@ -188,4 +204,8 @@ def get_settings() -> StaffSettings:
         access_groups=tuple(raw[SettingKey.ACCESS_GROUPS]),
         group_mode=GroupMode(raw.get(SettingKey.GROUP_MODE, DEFAULTS[SettingKey.GROUP_MODE])),
         lowest_access_group=raw.get(SettingKey.LOWEST_ACCESS_GROUP),
+        temporary_password_lifetime=raw.get(
+            SettingKey.TEMPORARY_PASSWORD_LIFETIME,
+            DEFAULTS[SettingKey.TEMPORARY_PASSWORD_LIFETIME],
+        ),
     )

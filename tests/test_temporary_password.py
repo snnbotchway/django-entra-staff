@@ -1,9 +1,13 @@
 """The Temporary password: the service that sets it and the forced replacement at sign-in."""
 
+from datetime import timedelta
+from unittest import mock
+
 import pytest
 from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
 from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 from django_entra_staff import services
 from django_entra_staff.errors import ErrorCode, StaffError
@@ -252,3 +256,14 @@ def test_an_app_admin_can_give_a_new_password_until_the_person_has_used_one(clie
 
     assert sign_in(client, user.email, first).status_code == 400
     assert sign_in(client, user.email, second).status_code == 401
+
+
+def test_a_temporary_password_stops_working_after_its_lifetime(client, temp_password_user):
+    eight_days_later = timezone.now() + timedelta(days=8)
+
+    with mock.patch("django.utils.timezone.now", return_value=eight_days_later):
+        response = sign_in(client, temp_password_user.email, TEMP_PASSWORD)
+
+    assert response.status_code == 400
+    assert response.json()["errors"][0]["code"] == "temporary_password_expired"
+    assert not is_signed_in(client)

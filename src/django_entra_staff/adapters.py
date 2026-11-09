@@ -12,7 +12,7 @@ from django.utils.translation import gettext_lazy as _
 from .conf import SignUpRule, get_settings
 from .errors import SignInErrorCode as Code
 from .providers.microsoft.views import GuestAccountError
-from .services import has_microsoft_link, set_access_groups
+from .services import has_expired_temporary_password, has_microsoft_link, set_access_groups
 from .signals import microsoft_link_made, user_signed_up_open_to_staff
 from .stages import ReplacePasswordStage, SecondStepAuthenticateStage, SecondStepSetupStage
 
@@ -29,6 +29,9 @@ class AccountAdapter(DefaultAccountAdapter):
         **DefaultAccountAdapter.error_messages,
         Code.USE_MICROSOFT_SIGNIN: _("Use Microsoft sign-in for this account."),
         Code.EMAIL_CHANGE_NOT_SUPPORTED: _("The email address of this account cannot be changed."),
+        Code.TEMPORARY_PASSWORD_EXPIRED: _(
+            "This temporary password has expired. Ask for a new one."
+        ),
     }
 
     def is_open_for_signup(self, request):
@@ -42,6 +45,8 @@ class AccountAdapter(DefaultAccountAdapter):
             # password keeps allauth's ordinary error, so linked Users do
             # not stand out.
             raise self.validation_error(Code.USE_MICROSOFT_SIGNIN)
+        if user is not None and has_expired_temporary_password(user):
+            raise self.validation_error(Code.TEMPORARY_PASSWORD_EXPIRED)
         return user
 
     def clean_password(self, password, user=None):
