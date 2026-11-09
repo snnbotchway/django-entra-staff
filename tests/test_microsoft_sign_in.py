@@ -38,6 +38,7 @@ def test_a_guest_of_the_tenant_is_refused(microsoft, client, user, idp):
     response = microsoft.sign_in(client, email="jane.doe@example.org", idp=idp)
 
     assert error_code(response) == "guest_account"
+    assert "error_process=login" in response["Location"]
     assert not is_signed_in(client)
     assert not SocialAccount.objects.exists()
 

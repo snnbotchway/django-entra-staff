@@ -164,7 +164,7 @@ Refusals come back to the page named in `socialaccount_login_error` as `?error=<
 | `user_blocked` | The User is blocked. |
 | `user_already_linked` | The User with this email is already linked to a different Microsoft person. |
 | `no_work_email` | Microsoft gave no email address (Open to staff only). |
-| `guest_account` | The person is a guest of your tenant, not a member. Tell them to ask IT for a member account or a password User. |
+| `guest_account` | The person is a guest of your tenant (a B2B guest or an invited personal Microsoft account), not a member. |
 | `connect_not_supported` | Someone asked to connect a Microsoft account by hand. Links are made only at first sign-in. |
 
 Any other failure, such as a token from the wrong tenant, comes back as `error=unknown`.
