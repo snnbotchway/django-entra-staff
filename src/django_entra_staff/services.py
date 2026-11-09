@@ -8,12 +8,14 @@ returns password data, and none of them touches Django admin access.
 `acting_user` is the User making the change; it is only carried to the signals.
 """
 
+import secrets
 from collections.abc import Iterable
 
 from allauth.mfa.models import Authenticator
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 
 from . import signals
@@ -122,15 +124,65 @@ def unblock_user(user, *, acting_user=None) -> None:
     _set_active(user, True, signals.user_unblocked, acting_user)
 
 
-@transaction.atomic
-def set_temporary_password(user, password: str, *, acting_user=None) -> None:
-    """Give the User a Temporary password the person must replace at their next
-    Password sign-in."""
+def _refuse_microsoft_linked(user) -> None:
     if has_microsoft_link(user):
         raise StaffError(
             ErrorCode.MICROSOFT_LINKED,
             "A User with a Microsoft link cannot get a Temporary password.",
         )
+
+
+@transaction.atomic
+def set_temporary_password(user, password: str, *, acting_user=None) -> None:
+    """Give the User a Temporary password the person must replace at their next
+    Password sign-in."""
+    _refuse_microsoft_linked(user)
+    _save_temporary_password(user, password, acting_user)
+
+
+# No look-alike characters (0/o, 1/l/i), so it can be read out or typed from a note.
+_PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+_PASSWORD_GROUPS = 4
+_PASSWORD_GROUP_LENGTH = 5
+
+
+def _random_password() -> str:
+    return "-".join(
+        "".join(secrets.choice(_PASSWORD_ALPHABET) for _ in range(_PASSWORD_GROUP_LENGTH))
+        for _ in range(_PASSWORD_GROUPS)
+    )
+
+
+@transaction.atomic
+def give_temporary_password(user, *, acting_user) -> str:
+    """Make a random Temporary password for the User and return it, once, for an
+    App admin to share. Nothing keeps it, and no signal carries it."""
+    _refuse_microsoft_linked(user)
+    if user.is_staff or user.is_superuser:
+        raise StaffError(
+            ErrorCode.DJANGO_ADMIN_ACCESS,
+            "Only IT gives a password to a User with Django admin access.",
+        )
+    if _has_used_a_password(user):
+        raise StaffError(
+            ErrorCode.USER_IN_USE,
+            "The User already signs in with a password; only IT can give it a new one.",
+        )
+    password = _random_password()
+    validate_password(password, user)
+    _save_temporary_password(user, password, acting_user)
+    return password
+
+
+def _has_used_a_password(user) -> bool:
+    """Whether the person has a password they chose or any Second step, so a
+    password from someone else would let that someone into a User in use.
+    Testing only the Second step would miss a User whose Second step IT cleared."""
+    chose_a_password = user.has_usable_password() and not user.must_replace_password
+    return chose_a_password or Authenticator.objects.filter(user=user).exists()
+
+
+def _save_temporary_password(user, password: str, acting_user) -> None:
     user.set_password(password)
     user.must_replace_password = True
     user.save(update_fields=["password", "must_replace_password"])

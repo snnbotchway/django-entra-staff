@@ -11,6 +11,7 @@ from tests.conftest import (
     API,
     PASSWORD,
     is_signed_in,
+    link_microsoft,
     sign_in,
     totp_code,
     totp_secret_of,
@@ -175,3 +176,79 @@ def test_a_microsoft_sign_in_is_never_asked_to_replace_a_password(
     assert not temp_password_user.has_usable_password()
     assert temp_password_user.must_replace_password
     assert is_signed_in(client)
+
+
+@pytest.fixture
+def app_admin():
+    return get_user_model().objects.create_user("app.admin@example.org", PASSWORD)
+
+
+def test_an_app_admin_gives_a_new_person_a_temporary_password_to_share(
+    client, app_admin, temporary_password_events
+):
+    user = services.invite_user("new.person@example.org", "viewer", acting_user=app_admin)
+
+    password = services.give_temporary_password(user, acting_user=app_admin)
+
+    response = sign_in(client, user.email, password)
+    assert response.status_code == 401
+    assert {"id": "second_step_setup", "is_pending": True} in response.json()["data"]["flows"]
+    assert [(event["user"], event["acting_user"]) for event in temporary_password_events] == [
+        (user, app_admin)
+    ]
+    assert all(password not in event.values() for event in temporary_password_events)
+
+
+def _linked(user):
+    link_microsoft(user)
+
+
+def _chose_a_password(user):
+    user.set_password(PASSWORD)
+    user.save()
+
+
+def _set_up_a_second_step(user):
+    services.set_temporary_password(user, TEMP_PASSWORD)
+    TOTP.activate(user, generate_totp_secret())
+
+
+def _has_django_admin_access(user):
+    user.is_staff = True
+    user.save()
+
+
+@pytest.mark.parametrize(
+    ("make", "code"),
+    [
+        (_linked, "microsoft_linked"),
+        (_chose_a_password, "user_in_use"),
+        (_set_up_a_second_step, "user_in_use"),
+        (_has_django_admin_access, "django_admin_access"),
+    ],
+    ids=["microsoft-link", "own-password", "second-step", "django-admin-access"],
+)
+def test_an_app_admin_cannot_give_a_password_into_someone_else_s_account(
+    app_admin, temporary_password_events, make, code
+):
+    user = get_user_model().objects.create_user("jane.doe@example.org")
+    make(user)
+    password_before = get_user_model().objects.get(pk=user.pk).password
+    temporary_password_events.clear()
+
+    with pytest.raises(StaffError) as refused:
+        services.give_temporary_password(user, acting_user=app_admin)
+
+    assert refused.value.code == code
+    assert get_user_model().objects.get(pk=user.pk).password == password_before
+    assert temporary_password_events == []
+
+
+def test_an_app_admin_can_give_a_new_password_until_the_person_has_used_one(client, app_admin):
+    user = get_user_model().objects.create_user("jane.doe@example.org")
+    first = services.give_temporary_password(user, acting_user=app_admin)
+
+    second = services.give_temporary_password(user, acting_user=app_admin)
+
+    assert sign_in(client, user.email, first).status_code == 400
+    assert sign_in(client, user.email, second).status_code == 401

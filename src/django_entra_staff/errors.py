@@ -11,6 +11,8 @@ class ErrorCode(StrEnum):
     EXCLUSIVE_NEEDS_ONE_GROUP = "exclusive_needs_one_group"
     USER_EXISTS = "user_exists"
     MICROSOFT_LINKED = "microsoft_linked"
+    USER_IN_USE = "user_in_use"
+    DJANGO_ADMIN_ACCESS = "django_admin_access"
 
 
 class SignInErrorCode(StrEnum):
