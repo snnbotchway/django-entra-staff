@@ -5,7 +5,7 @@ ADR 0007 kept Temporary passwords with IT, so every person without a work Micros
 An App admin gets no way into someone else's User, so `give_temporary_password` is refused when:
 
 - the User has a Microsoft link (ADR 0002);
-- the person has already used their User with a password: they have a password they chose, or any Second step. The test is not only the Second step, because IT can clear a Second step and the person keeps the password they chose;
+- the person has already used their User: they have signed in (with a password or Microsoft), chosen a password, or set up any Second step. Each counts on its own, because IT can clear a Second step or remove a Microsoft link and leave the rest, and a Password reset chooses a password without signing in;
 - the User has Django admin access, so IT's own Users stay with IT.
 
 The rest is as before: the person must set up the Second step and then replace the password at their first Password sign-in, so nobody but the person knows a password in use. IT's `set_temporary_password` in the Django admin is unchanged, and it can still give a new password to anyone without a Microsoft link.
@@ -15,7 +15,7 @@ Every Temporary password, from IT or an App admin, now stops working after `ENTR
 ## Considered Options
 
 - **Only IT gives passwords (ADR 0007)**: every new person without a Microsoft account waits for IT.
-- **Refuse only once the person has a Second step**: misses a User whose Second step IT cleared, who still has a password they chose.
+- **Refuse only once the person has a Second step**: misses a User whose Second step IT cleared, who still has a password they chose, and a User who signed in only with Microsoft and whose link IT removed.
 - **Refuse work-domain emails**: would stop App admins giving passwords to people who should use Microsoft sign-in, but needs a list of the organisation's domains in every App. Not worth it for now.
 
 ## Consequences
