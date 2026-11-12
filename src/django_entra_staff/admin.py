@@ -36,12 +36,7 @@ class TemporaryPasswordForm(forms.Form):
 NAMES_FROM_MICROSOFT = _("Updated from Microsoft at each Microsoft sign-in.")
 
 
-class AccessGroupsForm(forms.ModelForm):
-    """The `groups` field, offering only the declared Access groups. The admin saves
-    them through the service functions, so Django groups the App didn't declare stay."""
-
-
-class UserChangeForm(AccessGroupsForm):
+class UserChangeForm(forms.ModelForm):
     class Meta:
         help_texts = {
             "first_name": NAMES_FROM_MICROSOFT,
@@ -59,7 +54,7 @@ class UserChangeForm(AccessGroupsForm):
             )
 
 
-class InviteForm(AccessGroupsForm):
+class InviteForm(forms.ModelForm):
     """An email and Access groups. There is never a password to set: the person signs in with
     Microsoft sign-in, which links by this email, or IT gives them a Temporary password."""
 

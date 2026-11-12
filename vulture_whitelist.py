@@ -34,7 +34,6 @@ search_fields
 ordering
 actions
 help_texts
-_.clean_groups
 _.clean_email
 _.save_model
 _.user_change_password
