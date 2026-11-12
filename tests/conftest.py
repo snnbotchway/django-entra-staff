@@ -85,17 +85,17 @@ def error_code(response):
 
 
 @cached
-def _signing_key():
+def _signing_key(kid):
     return rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
 
-def _jwks():
-    jwk = jwt.algorithms.RSAAlgorithm.to_jwk(_signing_key().public_key(), as_dict=True)
-    jwk |= {"kid": KID, "alg": "RS256", "use": "sig"}
+def _jwks(kid):
+    jwk = jwt.algorithms.RSAAlgorithm.to_jwk(_signing_key(kid).public_key(), as_dict=True)
+    jwk |= {"kid": kid, "alg": "RS256", "use": "sig"}
     return {"keys": [jwk]}
 
 
-def _id_token(tid, uid, idp=None):
+def _id_token(tid, uid, idp=None, kid=KID):
     client_id = settings.SOCIALACCOUNT_PROVIDERS["microsoft"]["APP"]["client_id"]
     now = int(time.time())
     claims = {
@@ -109,7 +109,7 @@ def _id_token(tid, uid, idp=None):
     }
     if idp:
         claims["idp"] = idp
-    return jwt.encode(claims, _signing_key(), algorithm="RS256", headers={"kid": KID})
+    return jwt.encode(claims, _signing_key(kid), algorithm="RS256", headers={"kid": kid})
 
 
 def _json_response(status, data):
@@ -138,10 +138,14 @@ class FakeMicrosoft:
 
     Only the three HTTP endpoints the sign-in talks to are faked (token,
     key-set, Graph user info), by patching `requests.Session.request`. The
-    id_token is really signed and really verified by the package.
+    id_token is really signed and really verified by the package. `kid` is
+    the key Microsoft signs with and publishes; change it to rotate the key.
     """
 
     def __init__(self):
+        self.kid = KID
+        self.key_set_downloads = 0
+        self.signed_with = None
         self.tid = None
         self.uid = None
         self.idp = None
@@ -159,13 +163,16 @@ class FakeMicrosoft:
         provider="microsoft",
         given_name="Jane",
         surname="Doe",
+        signed_with=None,
     ):
         """`idp` sets the id_token's identity provider claim, as Entra does for a guest.
         `provider` is the id the App's Microsoft app is registered under. A name
-        given as None is left out of the profile, as Graph does when it's unset."""
+        given as None is left out of the profile, as Graph does when it's unset.
+        `signed_with` signs the id_token with a key other than the published one."""
         self.tid = tid or get_settings().tenant_id
         self.uid = uid
         self.idp = idp
+        self.signed_with = signed_with or self.kid
         self.profile = {
             "id": uid,
             "mail": email,
@@ -193,11 +200,12 @@ class FakeMicrosoft:
                 "access_token": "fake-access-token",
                 "token_type": "Bearer",
                 "expires_in": 3600,
-                "id_token": _id_token(self.tid, self.uid, self.idp),
+                "id_token": _id_token(self.tid, self.uid, self.idp, self.signed_with),
             }
             return _json_response(200, token)
         if method == "GET" and url == keys_url:
-            return _json_response(200, _jwks())
+            self.key_set_downloads += 1
+            return _json_response(200, _jwks(self.kid))
         if method == "GET" and url == "https://graph.microsoft.com/v1.0/me":
             return _json_response(200, self.profile)
         raise AssertionError(f"Unexpected request to Microsoft: {method} {url}")

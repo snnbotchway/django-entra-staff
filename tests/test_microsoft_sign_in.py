@@ -305,3 +305,35 @@ def test_a_link_made_under_another_provider_id_still_counts_as_the_microsoft_lin
     assert not user.has_usable_password()
     assert error_code(other_person) == "user_already_linked"
     assert SocialAccount.objects.filter(user=user).count() == 1
+
+
+def test_sign_ins_share_one_download_of_microsofts_signing_keys(microsoft, client, user):
+    microsoft.sign_in(client, email="jane.doe@example.org")
+    client.logout()
+
+    response = microsoft.sign_in(client, email="jane.doe@example.org")
+
+    assert error_code(response) is None
+    assert is_signed_in(client)
+    assert microsoft.key_set_downloads == 1
+
+
+def test_a_key_microsoft_rotated_in_signs_in_before_the_cached_key_set_expires(
+    microsoft, client, user
+):
+    microsoft.sign_in(client, email="jane.doe@example.org")
+    client.logout()
+    microsoft.kid = "rotated-signing-key"
+
+    response = microsoft.sign_in(client, email="jane.doe@example.org")
+
+    assert error_code(response) is None
+    assert is_signed_in(client)
+
+
+def test_a_token_signed_with_a_key_microsoft_does_not_publish_is_refused(microsoft, client, user):
+    response = microsoft.sign_in(client, email="jane.doe@example.org", signed_with="forged-key")
+
+    assert error_code(response) == "unknown"
+    assert not is_signed_in(client)
+    assert microsoft.key_set_downloads == 1
