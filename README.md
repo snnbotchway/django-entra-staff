@@ -95,7 +95,6 @@ ENTRA_STAFF = {
     "TENANT_ID": "00000000-0000-0000-0000-000000000000",
     "SIGN_UP_RULE": "invite_only",
     "ACCESS_GROUPS": ["viewer", "editor", "manager"],
-    "GROUP_MODE": "adding",
     "LOWEST_ACCESS_GROUP": "viewer",
     "TEMPORARY_PASSWORD_LIFETIME": timedelta(days=7),
 }
@@ -105,8 +104,7 @@ ENTRA_STAFF = {
 |---|---|
 | `TENANT_ID` | The one Entra tenant allowed to sign in. Required once the Microsoft provider is installed; leave it out for Password sign-in only. |
 | `SIGN_UP_RULE` | `"invite_only"` (default): a Microsoft person with no User is refused. `"open_to_staff"`: they get a User with only the lowest access group. |
-| `ACCESS_GROUPS` | Required. The App's Access groups, created as Django groups after every `migrate`. |
-| `GROUP_MODE` | `"adding"` (default): a User may hold several Access groups. `"exclusive"`: exactly one. |
+| `ACCESS_GROUPS` | Required. The App's Access groups, created as Django groups after every `migrate`. A User may hold any number of them, none included; an App that wants one at a time enforces that in its own screens. |
 | `LOWEST_ACCESS_GROUP` | The group Open to staff sign-ups get. Required for `open_to_staff`. |
 | `TEMPORARY_PASSWORD_LIFETIME` | A `timedelta` (default 7 days). A Temporary password stops working this long after it was set. |
 
@@ -191,7 +189,7 @@ The package's `UserAdmin` is Django's `django.contrib.auth.admin.UserAdmin` fitt
 There is no password anywhere on it (ADR 0002): no password field, no change-password link, and the `<id>/password/` page refuses. Django's own "Change password" page in the admin header refuses anyone with a Microsoft link. What IT changes goes through the service functions with the signed-in User as `acting_user`, so every rule and signal applies:
 
 - **Add** invites a person by email with chosen Access groups (`invite_user`). There are no password fields. Creating the first App admin of a new App works this way.
-- **Access groups** is Django's groups picker, offering only the declared Access groups, and is saved with `set_access_groups`. With exclusive Access groups, choosing anything but one is a form error and nothing is saved. Django groups the App didn't declare are left alone.
+- **Access groups** is Django's groups picker, offering only the declared Access groups, and is saved with `set_access_groups`. Django groups the App didn't declare are left alone.
 - **Active** unticked blocks the User (`block_user`); ticked again, it unblocks it (`unblock_user`).
 - **Django admin access** and **superuser status** are the User's own `is_staff` and `is_superuser`, set only here and never by Access groups.
 - **Actions** block or unblock the selected Users, set a Temporary password, clear the Second step, and remove a Microsoft link, next to Django's delete.
@@ -249,7 +247,7 @@ Use these from the App's own screens, commands and tests, never the models and a
 | `has_access_group(user, access_group)` | Whether the User holds the group; `False` when not signed in. |
 | `has_microsoft_link(user)` | Whether the User has a Microsoft link, so it can never have a password. |
 
-Error codes: `undeclared_access_group`, `exclusive_needs_one_group`, `user_exists`, `microsoft_linked`, `user_in_use`, `django_admin_access`.
+Error codes: `undeclared_access_group`, `user_exists`, `microsoft_linked`, `user_in_use`, `django_admin_access`.
 
 Only `set_temporary_password` takes a password, and only `give_temporary_password` returns one. None touches Django admin access.
 
@@ -287,6 +285,10 @@ All text the package shows goes through Django translation, and no wording names
 - **Error messages** (such as "Use Microsoft sign-in for this account."): translate them in your own locale catalog (listed in `LOCALE_PATHS`), or subclass the adapters and change `error_messages`.
 - **Emails** (Password reset, and allauth's notices when an authenticator or passkey is added or removed) are allauth's templates, `account/email/*` and `mfa/email/*`. Override one by adding a template with the same name in a template directory listed in `TEMPLATES["DIRS"]`, which Django searches before installed apps.
 - The Temporary password form in the Django admin is the only template the package ships (see above).
+
+## Upgrading from 0.5
+
+0.6 removes `GROUP_MODE`: Access groups always add up, so a User may hold several, or none ([ADR 0011](docs/adr/0011-access-groups-always-add-up.md)). Delete `GROUP_MODE` from `ENTRA_STAFF`; until you do, the `entra_staff.E002` check stops the App from starting. If your App gave each person one Access group, make your own screens and checks read the groups they need. The error code `exclusive_needs_one_group` is gone.
 
 ## Upgrading from 0.4
 

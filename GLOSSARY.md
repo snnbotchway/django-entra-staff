@@ -43,7 +43,7 @@ _Avoid_: Forgot password (in code and docs; fine as on-screen wording)
 ## Access
 
 **Access group**:
-A named group an App declares to say what a User may do there. An App's Access groups either add up (a person can hold several) or are exclusive (a person holds exactly one).
+A named group an App declares to say what a User may do there. Access groups add up: a person can hold several, or none.
 _Avoid_: Role (as a separate thing), permission, workspace
 
 **Lowest access**:
