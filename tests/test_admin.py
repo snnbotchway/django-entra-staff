@@ -10,7 +10,7 @@ from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.test import Client, override_settings
+from django.test import Client
 from django.urls import reverse
 
 from django_entra_staff import services, signals
@@ -23,7 +23,6 @@ from tests.conftest import (
     totp_code,
     totp_secret_of,
 )
-from tests.testapp import variants
 
 pytestmark = pytest.mark.django_db
 
@@ -423,23 +422,6 @@ def test_it_sets_access_groups_in_the_picker_through_the_service(it_client, it, 
     assert group_events == [(person, it, frozenset({"editor", "manager"}))]
 
 
-@override_settings(ENTRA_STAFF=variants.INVITE_ONLY_EXCLUSIVE)
-def test_exclusive_access_groups_take_exactly_one_or_nothing_is_saved(it_client):
-    person = services.invite_user("jane.doe@example.org", ["viewer"])
-
-    response = post_change(it_client, person, groups=group_pks("viewer", "editor"), is_staff="on")
-
-    assert response.status_code == 200
-    assert "Choose exactly one Access group." in response.content.decode()
-    assert held(person) == {"viewer"}
-    person.refresh_from_db()
-    assert not person.is_staff
-
-    post_change(it_client, person, groups=group_pks("editor"))
-
-    assert held(person) == {"editor"}
-
-
 @pytest.fixture
 def block_events():
     received = []
@@ -540,20 +522,6 @@ def test_inviting_an_existing_email_is_a_form_error(it_client):
     assert response.status_code == 200
     assert "A user with this email already exists." in response.content.decode()
     assert get_user_model().objects.filter(email__iexact="jane.doe@example.org").count() == 1
-
-
-@override_settings(ENTRA_STAFF=variants.INVITE_ONLY_EXCLUSIVE)
-def test_an_exclusive_invite_needs_exactly_one_access_group(it_client):
-    add = reverse("admin:testapp_user_add")
-
-    response = it_client.post(add, {"email": "new@example.org"})
-
-    assert "Choose exactly one Access group." in response.content.decode()
-    assert not get_user_model().objects.filter(email="new@example.org").exists()
-
-    it_client.post(add, {"email": "new@example.org", "groups": group_pks("editor")})
-
-    assert held(get_user_model().objects.get(email="new@example.org")) == {"editor"}
 
 
 def test_clearing_a_user_with_no_second_step_changes_nothing(user, sent):

@@ -22,7 +22,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from . import signals
-from .conf import SETTING_NAME, GroupMode, get_settings
+from .conf import SETTING_NAME, get_settings
 from .errors import ErrorCode, StaffError
 
 GroupNames = str | Iterable[str]
@@ -44,15 +44,6 @@ def _require_declared(names: Iterable[str]) -> None:
 def _held_groups(user) -> frozenset[str]:
     declared = get_settings().access_groups
     return frozenset(user.groups.filter(name__in=declared).values_list("name", flat=True))
-
-
-def _check_shape(names: frozenset[str]) -> None:
-    _require_declared(names)
-    if get_settings().group_mode == GroupMode.EXCLUSIVE and len(names) != 1:
-        raise StaffError(
-            ErrorCode.EXCLUSIVE_NEEDS_ONE_GROUP,
-            "Access groups are exclusive: a User holds exactly one.",
-        )
 
 
 def _replace_groups(user, names: frozenset[str], acting_user) -> None:
@@ -77,7 +68,7 @@ def invite_user(email: str, access_groups: GroupNames, *, acting_user=None):
     The person then signs in with Microsoft sign-in, which links by this email.
     """
     names = _names(access_groups)
-    _check_shape(names)
+    _require_declared(names)
     model = get_user_model()
     if model.objects.filter(email__iexact=email).exists():
         raise StaffError(ErrorCode.USER_EXISTS, "A User with this email already exists.")
@@ -93,7 +84,7 @@ def set_access_groups(user, access_groups: GroupNames, *, acting_user=None) -> N
     Django groups the App declares no Access group for are left alone.
     """
     names = _names(access_groups)
-    _check_shape(names)
+    _require_declared(names)
     _replace_groups(user, names, acting_user)
 
 

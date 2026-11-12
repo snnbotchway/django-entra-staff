@@ -3,11 +3,9 @@
 import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser, Group
-from django.test import override_settings
 
 from django_entra_staff import services, signals
 from django_entra_staff.errors import ErrorCode, StaffError
-from tests.testapp import variants
 
 pytestmark = pytest.mark.django_db
 
@@ -119,30 +117,6 @@ def test_other_django_groups_are_left_alone(admin_user):
 
     assert group_names(person) == {"app-specific", "editor"}
     assert services.has_access_group(person, "editor")
-
-
-@override_settings(ENTRA_STAFF=variants.INVITE_ONLY_EXCLUSIVE)
-def test_exclusive_mode_setting_a_group_replaces_the_old_one(admin_user):
-    person = services.invite_user("p@example.com", "viewer")
-
-    services.set_access_groups(person, "editor", acting_user=admin_user)
-
-    assert group_names(person) == {"editor"}
-
-
-@override_settings(ENTRA_STAFF=variants.INVITE_ONLY_EXCLUSIVE)
-@pytest.mark.parametrize("groups", [["viewer", "editor"], []])
-def test_exclusive_mode_refuses_anything_but_one_group(admin_user, groups):
-    person = services.invite_user("p@example.com", "viewer")
-
-    with pytest.raises(StaffError) as refused:
-        services.set_access_groups(person, groups)
-    assert refused.value.code == ErrorCode.EXCLUSIVE_NEEDS_ONE_GROUP
-    assert group_names(person) == {"viewer"}
-
-    with pytest.raises(StaffError) as refused:
-        services.invite_user("q@example.com", groups)
-    assert refused.value.code == ErrorCode.EXCLUSIVE_NEEDS_ONE_GROUP
 
 
 def test_block_and_unblock_flip_the_user_and_send_their_signals(sent, admin_user):

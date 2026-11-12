@@ -8,7 +8,6 @@ class ErrorCode(StrEnum):
     """Stable codes. Apps may match on them, so never rename or reuse a value."""
 
     UNDECLARED_ACCESS_GROUP = "undeclared_access_group"
-    EXCLUSIVE_NEEDS_ONE_GROUP = "exclusive_needs_one_group"
     USER_EXISTS = "user_exists"
     MICROSOFT_LINKED = "microsoft_linked"
     USER_IN_USE = "user_in_use"

@@ -19,7 +19,7 @@ from django.template.response import TemplateResponse
 from django.utils.translation import gettext_lazy as _
 
 from . import services
-from .conf import GroupMode, get_settings
+from .conf import get_settings
 from .errors import ErrorCode, StaffError
 from .stages import SECOND_STEP_TYPES
 
@@ -33,19 +33,12 @@ class TemporaryPasswordForm(forms.Form):
         return password
 
 
-ONE_ACCESS_GROUP = _("Choose exactly one Access group.")
 NAMES_FROM_MICROSOFT = _("Updated from Microsoft at each Microsoft sign-in.")
 
 
 class AccessGroupsForm(forms.ModelForm):
     """The `groups` field, offering only the declared Access groups. The admin saves
     them through the service functions, so Django groups the App didn't declare stay."""
-
-    def clean_groups(self):
-        groups = self.cleaned_data["groups"]
-        if get_settings().group_mode == GroupMode.EXCLUSIVE and len(groups) != 1:
-            raise forms.ValidationError(ONE_ACCESS_GROUP, code=ErrorCode.EXCLUSIVE_NEEDS_ONE_GROUP)
-        return groups
 
 
 class UserChangeForm(AccessGroupsForm):

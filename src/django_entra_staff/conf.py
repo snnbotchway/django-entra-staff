@@ -21,25 +21,18 @@ class SignUpRule(StrEnum):
     OPEN_TO_STAFF = "open_to_staff"
 
 
-class GroupMode(StrEnum):
-    ADDING = "adding"
-    EXCLUSIVE = "exclusive"
-
-
 class SettingKey(StrEnum):
     """The keys of the `ENTRA_STAFF` dict."""
 
     TENANT_ID = "TENANT_ID"
     SIGN_UP_RULE = "SIGN_UP_RULE"
     ACCESS_GROUPS = "ACCESS_GROUPS"
-    GROUP_MODE = "GROUP_MODE"
     LOWEST_ACCESS_GROUP = "LOWEST_ACCESS_GROUP"
     TEMPORARY_PASSWORD_LIFETIME = "TEMPORARY_PASSWORD_LIFETIME"
 
 
 DEFAULTS = {
     SettingKey.SIGN_UP_RULE: SignUpRule.INVITE_ONLY,
-    SettingKey.GROUP_MODE: GroupMode.ADDING,
     SettingKey.TEMPORARY_PASSWORD_LIFETIME: timedelta(days=7),
 }
 
@@ -49,7 +42,6 @@ class CheckId(StrEnum):
     UNKNOWN_KEY = "entra_staff.E002"
     BAD_TENANT_ID = "entra_staff.E003"
     BAD_SIGN_UP_RULE = "entra_staff.E004"
-    BAD_GROUP_MODE = "entra_staff.E005"
     BAD_ACCESS_GROUPS = "entra_staff.E006"
     LOWEST_ACCESS_GROUP_NOT_DECLARED = "entra_staff.E008"
     OPEN_TO_STAFF_NEEDS_LOWEST_ACCESS_GROUP = "entra_staff.E009"
@@ -87,7 +79,6 @@ class StaffSettings:
     tenant_id: str | None
     sign_up_rule: SignUpRule
     access_groups: tuple[str, ...]
-    group_mode: GroupMode
     lowest_access_group: str | None
     temporary_password_lifetime: timedelta  # ggignore: a duration
 
@@ -130,14 +121,6 @@ def validate(raw: object) -> list[Problem]:
             Problem(
                 CheckId.BAD_SIGN_UP_RULE,
                 f"{SettingKey.SIGN_UP_RULE} must be one of {_values(SignUpRule)}.",
-            )
-        )
-
-    if not _is_member(GroupMode, raw.get(SettingKey.GROUP_MODE, DEFAULTS[SettingKey.GROUP_MODE])):
-        problems.append(
-            Problem(
-                CheckId.BAD_GROUP_MODE,
-                f"{SettingKey.GROUP_MODE} must be one of {_values(GroupMode)}.",
             )
         )
 
@@ -202,7 +185,6 @@ def get_settings() -> StaffSettings:
             raw.get(SettingKey.SIGN_UP_RULE, DEFAULTS[SettingKey.SIGN_UP_RULE])
         ),
         access_groups=tuple(raw[SettingKey.ACCESS_GROUPS]),
-        group_mode=GroupMode(raw.get(SettingKey.GROUP_MODE, DEFAULTS[SettingKey.GROUP_MODE])),
         lowest_access_group=raw.get(SettingKey.LOWEST_ACCESS_GROUP),
         temporary_password_lifetime=raw.get(
             SettingKey.TEMPORARY_PASSWORD_LIFETIME,

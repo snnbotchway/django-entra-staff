@@ -11,7 +11,7 @@ from tests.testapp import variants
 
 pytestmark = pytest.mark.django_db
 
-OPEN_VARIANTS = [variants.OPEN_TO_STAFF_ADDING, variants.OPEN_TO_STAFF_EXCLUSIVE]
+OPEN_VARIANTS = [variants.OPEN_TO_STAFF_ADDING]
 
 
 @pytest.fixture

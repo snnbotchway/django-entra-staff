@@ -44,7 +44,7 @@ def test_microsoft_sign_in_needs_the_tenant_id():
         (staff(COLOUR="red"), "entra_staff.E002"),
         (staff(TENANT_ID=""), "entra_staff.E003"),
         (staff(SIGN_UP_RULE="anyone"), "entra_staff.E004"),
-        (staff(GROUP_MODE="sticky"), "entra_staff.E005"),
+        (staff(GROUP_MODE="adding"), "entra_staff.E002"),
         (staff(ACCESS_GROUPS=[]), "entra_staff.E006"),
         (staff(ACCESS_GROUPS=["viewer", "viewer"]), "entra_staff.E006"),
         (staff(LOWEST_ACCESS_GROUP="guest"), "entra_staff.E008"),
