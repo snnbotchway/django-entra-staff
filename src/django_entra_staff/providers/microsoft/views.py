@@ -79,7 +79,7 @@ class MicrosoftGraphOAuth2Adapter(AllauthMicrosoftGraphOAuth2Adapter):
                 audience=audience,
                 options={"verify_iss": True, "verify_aud": True, "verify_exp": True},
             )
-        except (jwt.PyJWTError, KeyError) as e:
+        except (jwt.PyJWTError, KeyError, TypeError) as e:
             raise OAuth2Error("Invalid id_token") from e
         jwtkit.verify_jti(claims)
         return claims
@@ -87,22 +87,25 @@ class MicrosoftGraphOAuth2Adapter(AllauthMicrosoftGraphOAuth2Adapter):
     def _signing_key(self, kid):
         """The tenant's public key named `kid`.
 
-        A `kid` missing from the cached key set downloads it again, so a key
-        Microsoft has rotated in signs in at once.
+        A key set is cached only once it holds the key, so a broken download is
+        never kept. A `kid` missing from the cached set downloads it again, so a
+        key Microsoft has rotated in signs in at once.
         """
         keys_url = self._build_tenant_url("/discovery/v2.0/keys")
         cache_key = f"django_entra_staff:microsoft_keys:{keys_url}"
         keys = cache.get(cache_key)
-        key = keys and jwtkit.lookup_kid_jwk(keys, kid)
-        if key is None:
-            with get_adapter().get_requests_session() as session:
-                response = session.get(keys_url)
-                response.raise_for_status()
-                keys = response.json()
-            cache.set(cache_key, keys, KEY_SET_CACHE_SECONDS)
+        if keys is not None:
             key = jwtkit.lookup_kid_jwk(keys, kid)
+            if key is not None:
+                return key
+        with get_adapter().get_requests_session() as session:
+            response = session.get(keys_url)
+            response.raise_for_status()
+            keys = response.json()
+        key = jwtkit.lookup_kid_jwk(keys, kid)
         if key is None:
             raise OAuth2Error(f"Invalid 'kid': '{kid}'")
+        cache.set(cache_key, keys, KEY_SET_CACHE_SECONDS)
         return key
 
 

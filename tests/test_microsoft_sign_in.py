@@ -311,9 +311,8 @@ def test_sign_ins_share_one_download_of_microsofts_signing_keys(microsoft, clien
     microsoft.sign_in(client, email="jane.doe@example.org")
     client.logout()
 
-    response = microsoft.sign_in(client, email="jane.doe@example.org")
+    microsoft.sign_in(client, email="jane.doe@example.org")
 
-    assert error_code(response) is None
     assert is_signed_in(client)
     assert microsoft.key_set_downloads == 1
 
@@ -325,10 +324,10 @@ def test_a_key_microsoft_rotated_in_signs_in_before_the_cached_key_set_expires(
     client.logout()
     microsoft.kid = "rotated-signing-key"
 
-    response = microsoft.sign_in(client, email="jane.doe@example.org")
+    microsoft.sign_in(client, email="jane.doe@example.org")
 
-    assert error_code(response) is None
     assert is_signed_in(client)
+    assert microsoft.key_set_downloads == 2
 
 
 def test_a_token_signed_with_a_key_microsoft_does_not_publish_is_refused(microsoft, client, user):
@@ -337,3 +336,16 @@ def test_a_token_signed_with_a_key_microsoft_does_not_publish_is_refused(microso
     assert error_code(response) == "unknown"
     assert not is_signed_in(client)
     assert microsoft.key_set_downloads == 1
+
+
+@pytest.mark.parametrize("key_set", [{}, [], {"keys": [{"kty": "RSA"}]}])
+def test_a_broken_key_set_refuses_that_sign_in_and_is_not_kept(microsoft, client, user, key_set):
+    microsoft.key_set = key_set
+    refused = microsoft.sign_in(client, email="jane.doe@example.org")
+    microsoft.key_set = None
+
+    response = microsoft.sign_in(client, email="jane.doe@example.org")
+
+    assert error_code(refused) == "unknown"
+    assert error_code(response) is None
+    assert is_signed_in(client)

@@ -140,11 +140,13 @@ class FakeMicrosoft:
     key-set, Graph user info), by patching `requests.Session.request`. The
     id_token is really signed and really verified by the package. `kid` is
     the key Microsoft signs with and publishes; change it to rotate the key.
+    `key_set` replaces the key set Microsoft serves, to serve a broken one.
     """
 
     def __init__(self):
         self.kid = KID
         self.key_set_downloads = 0
+        self.key_set = None
         self.signed_with = None
         self.tid = None
         self.uid = None
@@ -205,7 +207,8 @@ class FakeMicrosoft:
             return _json_response(200, token)
         if method == "GET" and url == keys_url:
             self.key_set_downloads += 1
-            return _json_response(200, _jwks(self.kid))
+            key_set = _jwks(self.kid) if self.key_set is None else self.key_set
+            return _json_response(200, key_set)
         if method == "GET" and url == "https://graph.microsoft.com/v1.0/me":
             return _json_response(200, self.profile)
         raise AssertionError(f"Unexpected request to Microsoft: {method} {url}")
