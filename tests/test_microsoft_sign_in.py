@@ -9,7 +9,7 @@ from django_entra_staff import services
 from django_entra_staff.conf import get_settings
 from django_entra_staff.errors import ErrorCode, StaffError
 from django_entra_staff.signals import microsoft_link_made
-from tests.conftest import API, PASSWORD, error_code, is_signed_in
+from tests.conftest import API, KID, PASSWORD, error_code, is_signed_in, key_set_for
 
 pytestmark = pytest.mark.django_db
 
@@ -348,4 +348,16 @@ def test_a_broken_key_set_refuses_that_sign_in_and_is_not_kept(microsoft, client
 
     assert error_code(refused) == "unknown"
     assert error_code(response) is None
+    assert is_signed_in(client)
+
+
+def test_a_broken_entry_in_the_cached_key_set_does_not_block_a_rotated_key(microsoft, client, user):
+    microsoft.key_set = {"keys": [*key_set_for(KID)["keys"], {"kty": "RSA"}]}
+    microsoft.sign_in(client, email="jane.doe@example.org")
+    client.logout()
+    microsoft.key_set = None
+    microsoft.kid = "rotated-signing-key"
+
+    microsoft.sign_in(client, email="jane.doe@example.org")
+
     assert is_signed_in(client)

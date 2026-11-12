@@ -79,7 +79,7 @@ class MicrosoftGraphOAuth2Adapter(AllauthMicrosoftGraphOAuth2Adapter):
                 audience=audience,
                 options={"verify_iss": True, "verify_aud": True, "verify_exp": True},
             )
-        except (jwt.PyJWTError, KeyError, TypeError) as e:
+        except (jwt.PyJWTError, KeyError) as e:
             raise OAuth2Error("Invalid id_token") from e
         jwtkit.verify_jti(claims)
         return claims
@@ -93,20 +93,28 @@ class MicrosoftGraphOAuth2Adapter(AllauthMicrosoftGraphOAuth2Adapter):
         """
         keys_url = self._build_tenant_url("/discovery/v2.0/keys")
         cache_key = f"django_entra_staff:microsoft_keys:{keys_url}"
-        keys = cache.get(cache_key)
-        if keys is not None:
-            key = jwtkit.lookup_kid_jwk(keys, kid)
-            if key is not None:
-                return key
+        key = _find_key(cache.get(cache_key), kid)
+        if key is not None:
+            return key
         with get_adapter().get_requests_session() as session:
             response = session.get(keys_url)
             response.raise_for_status()
             keys = response.json()
-        key = jwtkit.lookup_kid_jwk(keys, kid)
+        key = _find_key(keys, kid)
         if key is None:
             raise OAuth2Error(f"Invalid 'kid': '{kid}'")
         cache.set(cache_key, keys, KEY_SET_CACHE_SECONDS)
         return key
+
+
+def _find_key(keys, kid):
+    """The key named `kid` in a key set; None if the set lacks it or is broken."""
+    if keys is None:
+        return None
+    try:
+        return jwtkit.lookup_kid_jwk(keys, kid)
+    except (KeyError, TypeError, ValueError, jwt.PyJWTError, OAuth2Error):
+        return None
 
 
 oauth2_login = OAuth2LoginView.adapter_view(MicrosoftGraphOAuth2Adapter)

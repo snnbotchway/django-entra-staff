@@ -89,7 +89,7 @@ def _signing_key(kid):
     return rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
 
-def _jwks(kid):
+def key_set_for(kid):
     jwk = jwt.algorithms.RSAAlgorithm.to_jwk(_signing_key(kid).public_key(), as_dict=True)
     jwk |= {"kid": kid, "alg": "RS256", "use": "sig"}
     return {"keys": [jwk]}
@@ -207,7 +207,7 @@ class FakeMicrosoft:
             return _json_response(200, token)
         if method == "GET" and url == keys_url:
             self.key_set_downloads += 1
-            key_set = _jwks(self.kid) if self.key_set is None else self.key_set
+            key_set = key_set_for(self.kid) if self.key_set is None else self.key_set
             return _json_response(200, key_set)
         if method == "GET" and url == "https://graph.microsoft.com/v1.0/me":
             return _json_response(200, self.profile)
