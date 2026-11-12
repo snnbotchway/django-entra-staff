@@ -356,6 +356,7 @@ source = { editable = "." }
 dependencies = [
     { name = "django" },
     { name = "django-allauth", extra = ["headless", "mfa", "socialaccount"] },
+    { name = "pyjwt", extra = ["crypto"] },
 ]
 
 [package.dev-dependencies]
@@ -370,6 +371,7 @@ dev = [
 requires-dist = [
     { name = "django", specifier = ">=5.2,<6.2" },
     { name = "django-allauth", extras = ["headless", "mfa", "socialaccount"], specifier = ">=65.21.1,<65.22" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.0,<3" },
 ]
 
 [package.metadata.requires-dev]
