@@ -26,8 +26,27 @@ class EntraStaffConfig(AppConfig):
             # The admin sign-in goes through the same allauth flows as the App
             # (Microsoft sign-in, or password plus the Second step), so the
             # admin is not a weaker way in.
-            admin.site.login = secure_admin_login(admin.site.login)
+            admin.site.login = never_switch_user(secure_admin_login(admin.site.login))
             admin.site.password_change = refuse_for_microsoft_linked(admin.site.password_change)
+
+
+def never_switch_user(view):
+    """Send a signed-in User who may use the admin to its index, never to Django's login form.
+
+    allauth's `secure_admin_login` lets such a User through to that form, which signs in whoever's
+    password it is given, with no Second step and no attempt limit.
+    """
+
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        user = request.user
+        if user.is_authenticated and user.is_active and user.is_staff:
+            from django.shortcuts import redirect
+
+            return redirect("admin:index")
+        return view(request, *args, **kwargs)
+
+    return wrapped
 
 
 def refuse_for_microsoft_linked(view):
