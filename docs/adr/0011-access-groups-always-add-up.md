@@ -5,5 +5,5 @@
 ## Consequences
 
 - An App upgrading with `GROUP_MODE` still in `ENTRA_STAFF` fails the unknown-key check (`entra_staff.E002`) until the key is removed, so nobody keeps an exclusive rule they think is still enforced.
-- The error code `exclusive_needs_one_group` and the admin message "Choose exactly one Access group." are gone. The check id `entra_staff.E005` is retired and not reused.
+- The error code `exclusive_needs_one_group` (never to be reused) and the admin message "Choose exactly one Access group." are gone. The check id `entra_staff.E005` is retired and not reused.
 - IT can give anyone several Access groups in the Django admin. An App whose groups are a ladder (a higher one includes the lower ones' rights) takes the highest group held.

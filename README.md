@@ -288,7 +288,7 @@ All text the package shows goes through Django translation, and no wording names
 
 ## Upgrading from 0.5
 
-0.6 removes `GROUP_MODE`: Access groups always add up, so a User may hold several, or none ([ADR 0011](docs/adr/0011-access-groups-always-add-up.md)). Delete `GROUP_MODE` from `ENTRA_STAFF` and stop importing `GroupMode` or `SettingKey.GROUP_MODE` from `django_entra_staff.conf`, which no longer exist. A leftover `GROUP_MODE` key fails the `entra_staff.E002` check and stops the App from starting. If your App gave each person one Access group, make your own screens and checks read the groups they need. The error code `exclusive_needs_one_group` is gone.
+0.6 removes `GROUP_MODE`: Access groups always add up, so a User may hold several, or none ([ADR 0011](docs/adr/0011-access-groups-always-add-up.md)). Delete `GROUP_MODE` from `ENTRA_STAFF` and stop importing `GroupMode` or `SettingKey.GROUP_MODE` from `django_entra_staff.conf`, which no longer exist. A leftover `GROUP_MODE` key fails the `entra_staff.E002` system check, and every settings read raises `ImproperlyConfigured`, so the App cannot run with it. If your App gave each person one Access group, make your own screens and checks read the groups they need. The error code `exclusive_needs_one_group` is gone.
 
 ## Upgrading from 0.4
 
