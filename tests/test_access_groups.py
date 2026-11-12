@@ -86,7 +86,7 @@ def test_undeclared_group_is_refused_and_nothing_is_saved(admin_user):
     assert group_names(person) == {"viewer"}
 
 
-def test_adding_mode_sets_the_groups_to_exactly_the_given_ones(sent, admin_user):
+def test_setting_groups_makes_them_exactly_the_given_ones(sent, admin_user):
     person = services.invite_user("p@example.com", ["viewer"])
     sent.clear()
 
@@ -98,6 +98,17 @@ def test_adding_mode_sets_the_groups_to_exactly_the_given_ones(sent, admin_user)
         ("access_groups_changed", {"viewer"}, {"viewer", "editor"}),
         ("access_groups_changed", {"viewer", "editor"}, {"editor"}),
     ]
+
+
+def test_a_user_can_hold_no_access_group(admin_user):
+    person = services.invite_user("p@example.com", [])
+    assert group_names(person) == set()
+
+    services.set_access_groups(person, ["viewer"], acting_user=admin_user)
+    services.set_access_groups(person, [], acting_user=admin_user)
+
+    assert group_names(person) == set()
+    assert not services.has_access_group(person, "viewer")
 
 
 def test_setting_the_groups_a_person_already_has_sends_nothing(sent, admin_user):

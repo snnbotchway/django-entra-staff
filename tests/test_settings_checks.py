@@ -8,7 +8,7 @@ from django.test import override_settings
 
 from django_entra_staff.checks import check_settings
 from tests.testapp import variants
-from tests.testapp.variants import INVITE_ONLY_ADDING
+from tests.testapp.variants import INVITE_ONLY
 
 
 def check_ids(**overrides):
@@ -23,7 +23,7 @@ def test_the_test_app_passes_all_system_checks():
 
 
 def staff(**changes):
-    return {**INVITE_ONLY_ADDING, **changes}
+    return {**INVITE_ONLY, **changes}
 
 
 @pytest.mark.parametrize("variant", variants.ALL)
@@ -32,7 +32,7 @@ def test_every_test_app_variant_is_consistent(variant):
 
 
 def test_microsoft_sign_in_needs_the_tenant_id():
-    without_tenant = {k: v for k, v in INVITE_ONLY_ADDING.items() if k != "TENANT_ID"}
+    without_tenant = {k: v for k, v in INVITE_ONLY.items() if k != "TENANT_ID"}
 
     assert check_ids(ENTRA_STAFF=without_tenant) == {"entra_staff.E013"}
 

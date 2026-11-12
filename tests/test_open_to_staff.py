@@ -11,8 +11,6 @@ from tests.testapp import variants
 
 pytestmark = pytest.mark.django_db
 
-OPEN_VARIANTS = [variants.OPEN_TO_STAFF_ADDING]
-
 
 @pytest.fixture
 def signup_events():
@@ -35,12 +33,11 @@ def group_names(user):
     return set(user.groups.values_list("name", flat=True))
 
 
-@pytest.mark.parametrize("variant", OPEN_VARIANTS)
+@override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF)
 def test_first_sign_in_makes_a_user_with_the_lowest_access_group(
-    microsoft, client, signup_events, link_made_events, variant
+    microsoft, client, signup_events, link_made_events
 ):
-    with override_settings(ENTRA_STAFF=variant):
-        response = microsoft.sign_in(client, email="new.person@example.org")
+    response = microsoft.sign_in(client, email="new.person@example.org")
 
     assert response.status_code == 302
     assert error_code(response) is None
@@ -62,7 +59,7 @@ def test_first_sign_in_makes_a_user_with_the_lowest_access_group(
     )
 
 
-@override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF_ADDING)
+@override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF)
 def test_a_second_sign_in_signs_in_instead_of_signing_up(microsoft, client, signup_events):
     microsoft.sign_in(client, email="new.person@example.org")
     client.logout()
@@ -77,7 +74,7 @@ def test_a_second_sign_in_signs_in_instead_of_signing_up(microsoft, client, sign
     assert signup_events == []
 
 
-@override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF_ADDING)
+@override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF)
 def test_an_invited_person_still_links_instead_of_signing_up(
     microsoft, client, signup_events, link_made_events
 ):
@@ -96,7 +93,7 @@ def test_an_invited_person_still_links_instead_of_signing_up(
     assert signup_events == []
 
 
-@override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF_ADDING)
+@override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF)
 def test_a_microsoft_person_with_no_email_is_refused(microsoft, client, signup_events):
     response = microsoft.sign_in(client, email="")
 
@@ -107,7 +104,7 @@ def test_a_microsoft_person_with_no_email_is_refused(microsoft, client, signup_e
     assert signup_events == []
 
 
-@override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF_ADDING)
+@override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF)
 def test_a_failing_sign_up_receiver_rolls_the_sign_up_back(microsoft, client):
     def failing_receiver(sender, **kwargs):
         raise RuntimeError("receiver failed")

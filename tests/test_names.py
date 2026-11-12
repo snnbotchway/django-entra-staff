@@ -16,7 +16,7 @@ def names(email):
     return user.first_name, user.last_name
 
 
-@override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF_ADDING)
+@override_settings(ENTRA_STAFF=variants.OPEN_TO_STAFF)
 def test_open_to_staff_sign_up_takes_the_names_from_microsoft(microsoft, client):
     response = microsoft.sign_in(
         client, email="new.person@example.org", given_name="Ama", surname="Mensah"

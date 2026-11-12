@@ -1,4 +1,4 @@
-from tests.testapp.variants import INVITE_ONLY_ADDING
+from tests.testapp.variants import INVITE_ONLY
 
 SECRET_KEY = "test-only"
 DEBUG = False
@@ -59,7 +59,7 @@ AUTH_PASSWORD_VALIDATORS = [
 AUTH_USER_MODEL = "testapp.User"
 AUTHENTICATION_BACKENDS = ["allauth.account.auth_backends.AuthenticationBackend"]
 
-ENTRA_STAFF = INVITE_ONLY_ADDING
+ENTRA_STAFF = INVITE_ONLY
 
 ACCOUNT_ADAPTER = "django_entra_staff.adapters.AccountAdapter"
 SOCIALACCOUNT_ADAPTER = "django_entra_staff.adapters.SocialAccountAdapter"
