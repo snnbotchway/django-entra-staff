@@ -12,3 +12,4 @@ allauth's Microsoft provider is plain OAuth2: it never verifies the id_token, so
 
 - A wrong-tenant token fails with allauth's generic `unknown` error, so the refusal reveals nothing about the tenant. A guest token fails with its own `guest_account` code, so the App can send the person to IT for a member account or a password User. The person already knows they are a guest, so the code tells them nothing new.
 - Adding a second provider later means telling a Microsoft link apart from other social accounts everywhere the package now counts "any social account".
+- The package verifies the id_token itself rather than through allauth's `jwtkit.verify_and_decode`, so it can keep the tenant's key set in the cache for a day (Microsoft's own `max-age`) instead of downloading it at every sign-in. A `kid` missing from the cached set downloads it again, so a key Microsoft rotates in works at once. allauth declined caching in allauth itself (allauth/django-allauth#4769).
