@@ -8,6 +8,7 @@ from allauth.mfa.models import Authenticator
 from allauth.mfa.recovery_codes.internal.auth import RecoveryCodes
 from allauth.mfa.totp.internal.auth import TOTP, generate_totp_secret
 from allauth.socialaccount.models import SocialAccount
+from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.test import Client
@@ -134,6 +135,30 @@ def test_the_admin_login_page_is_not_a_plain_password_form(client):
     location = urlparse(response["Location"])
     assert location.path == "/sign-in/"
     assert parse_qs(location.query)["next"] == ["/admin/login/"]
+
+
+def test_a_signed_in_admin_cannot_switch_to_another_user_through_the_admin_login(it_client, it):
+    """Django's admin login form would sign in whoever's password it gets, with no Second step."""
+    other = get_user_model().objects.create_superuser("other@example.org", PASSWORD)
+
+    response = it_client.post("/admin/login/", {"username": other.email, "password": PASSWORD})
+
+    assert response.status_code == 302
+    assert urlparse(response["Location"]).path == "/admin/"
+    assert int(it_client.session["_auth_user_id"]) == it.pk
+
+
+def test_a_signed_in_user_the_site_refuses_never_reaches_the_admin_login_form(
+    it_client, it, monkeypatch
+):
+    """A site stricter than `is_staff` must refuse, not fall back to Django's login form."""
+    other = get_user_model().objects.create_superuser("other@example.org", PASSWORD)
+    monkeypatch.setattr(admin.site, "has_permission", lambda request: False)
+
+    response = it_client.post("/admin/login/", {"username": other.email, "password": PASSWORD})
+
+    assert response.status_code == 403
+    assert int(it_client.session["_auth_user_id"]) == it.pk
 
 
 def test_an_admin_signs_in_with_password_and_second_step(client):
