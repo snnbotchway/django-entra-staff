@@ -4,6 +4,7 @@ from django.apps import AppConfig
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.db.models.signals import post_migrate
+from django.shortcuts import redirect
 
 
 class EntraStaffConfig(AppConfig):
@@ -20,33 +21,34 @@ class EntraStaffConfig(AppConfig):
         )
 
         if "django.contrib.admin" in settings.INSTALLED_APPS:
-            from allauth.account.decorators import secure_admin_login
             from django.contrib import admin
 
             # The admin sign-in goes through the same allauth flows as the App
             # (Microsoft sign-in, or password plus the Second step), so the
             # admin is not a weaker way in.
-            admin.site.login = never_switch_user(secure_admin_login(admin.site.login))
+            admin.site.login = secure_admin_site_login(admin.site)
             admin.site.password_change = refuse_for_microsoft_linked(admin.site.password_change)
 
 
-def never_switch_user(view):
-    """Send a signed-in User who may use the admin to its index, never to Django's login form.
+def secure_admin_site_login(site):
+    """The sign-in for an `AdminSite`: allauth's flows, and never Django's login form.
 
-    allauth's `secure_admin_login` lets such a User through to that form, which signs in whoever's
-    password it is given, with no Second step and no attempt limit.
+    allauth's `secure_admin_login` sends a signed-out person to the App's sign-in, but lets a
+    signed-in User who may use the site through to Django's login form, which signs in whoever's
+    password it is given, with no Second step and no attempt limit. Such a User goes to the
+    site's index instead.
     """
+    from allauth.account.decorators import secure_admin_login
 
-    @wraps(view)
-    def wrapped(request, *args, **kwargs):
-        user = request.user
-        if user.is_authenticated and user.is_active and user.is_staff:
-            from django.shortcuts import redirect
+    secured = secure_admin_login(site.login)
 
-            return redirect("admin:index")
-        return view(request, *args, **kwargs)
+    @wraps(site.login)
+    def login(request, *args, **kwargs):
+        if site.has_permission(request):
+            return redirect(f"{site.name}:index")
+        return secured(request, *args, **kwargs)
 
-    return wrapped
+    return login
 
 
 def refuse_for_microsoft_linked(view):

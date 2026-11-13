@@ -136,11 +136,11 @@ def test_the_admin_login_page_is_not_a_plain_password_form(client):
     assert parse_qs(location.query)["next"] == ["/admin/login/"]
 
 
-def test_a_signed_in_admin_cannot_switch_to_another_user_through_the_admin_login(
-    it_client, it, user
-):
+def test_a_signed_in_admin_cannot_switch_to_another_user_through_the_admin_login(it_client, it):
     """Django's admin login form would sign in whoever's password it gets, with no Second step."""
-    response = it_client.post("/admin/login/", {"username": user.email, "password": PASSWORD})
+    other = get_user_model().objects.create_superuser("other@example.org", PASSWORD)
+
+    response = it_client.post("/admin/login/", {"username": other.email, "password": PASSWORD})
 
     assert response.status_code == 302
     assert urlparse(response["Location"]).path == "/admin/"

@@ -196,12 +196,12 @@ There is no password anywhere on it (ADR 0002): no password field, no change-pas
 
 Subclass `UserAdmin` to add columns or fields. Override the Temporary password form with a template at `django_entra_staff/set_temporary_password.html`.
 
-The admin sign-in page is replaced on the default `admin.site`: it sends people to `LOGIN_URL`, so the admin opens only after Microsoft sign-in or password plus Second step. An App with its own `AdminSite` must wrap its `login` the same way:
+The admin sign-in page is replaced on the default `admin.site`: it sends people to `LOGIN_URL`, so the admin opens only after Microsoft sign-in or password plus Second step, and a signed-in User goes to the admin index, never to Django's login form. An App with its own `AdminSite` must replace its `login` the same way:
 
 ```python
-from allauth.account.decorators import secure_admin_login
+from django_entra_staff.apps import secure_admin_site_login
 
-my_site.login = secure_admin_login(my_site.login)
+my_site.login = secure_admin_site_login(my_site)
 ```
 
 Being an App admin never grants Django admin access. Only IT and developers hold `is_staff`, set on the User itself.
