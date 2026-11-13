@@ -34,9 +34,9 @@ def secure_admin_site_login(site):
     """The sign-in for an `AdminSite`: allauth's flows, and never Django's login form.
 
     allauth's `secure_admin_login` sends a signed-out person to the App's sign-in, but lets a
-    signed-in User who may use the site through to Django's login form, which signs in whoever's
-    password it is given, with no Second step and no attempt limit. Such a User goes to the
-    site's index instead.
+    signed-in staff User through to Django's login form, which signs in whoever's password it is
+    given, with no Second step and no attempt limit. A signed-in User goes to the site's index if
+    the site lets them in, and is refused otherwise.
     """
     from allauth.account.decorators import secure_admin_login
 
@@ -44,9 +44,11 @@ def secure_admin_site_login(site):
 
     @wraps(site.login)
     def login(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return secured(request, *args, **kwargs)
         if site.has_permission(request):
             return redirect(f"{site.name}:index")
-        return secured(request, *args, **kwargs)
+        raise PermissionDenied
 
     return login
 
