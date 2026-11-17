@@ -138,7 +138,8 @@ def test_the_admin_login_page_is_not_a_plain_password_form(client):
 
 
 def test_a_signed_in_admin_cannot_switch_to_another_user_through_the_admin_login(it_client, it):
-    """Django's admin login form would sign in whoever's password it gets, with no Second step."""
+    """Django's admin login form would sign in whoever's password it gets, with no
+    two-step verification."""
     other = get_user_model().objects.create_superuser("other@example.org", PASSWORD)
 
     response = it_client.post("/admin/login/", {"username": other.email, "password": PASSWORD})
@@ -161,7 +162,7 @@ def test_a_signed_in_user_the_site_refuses_never_reaches_the_admin_login_form(
     assert int(it_client.session["_auth_user_id"]) == it.pk
 
 
-def test_an_admin_signs_in_with_password_and_second_step(client):
+def test_an_admin_signs_in_with_password_and_two_step_verification(client):
     it = get_user_model().objects.create_superuser("it@example.org", PASSWORD)
     TOTP.activate(it, generate_totp_secret())
     RecoveryCodes.activate(it)
@@ -304,25 +305,25 @@ def test_a_temporary_password_must_meet_the_apps_password_rules(it_client):
 
 
 def test_the_admin_clears_authenticators_so_the_next_sign_in_sets_up_again(
-    it_client, it, second_step_user, sent
+    it_client, it, two_step_user, sent
 ):
     changelist = reverse("admin:testapp_user_changelist")
 
     response = it_client.post(
         changelist,
-        {"action": "clear_authenticators", "_selected_action": str(second_step_user.pk)},
+        {"action": "clear_authenticators", "_selected_action": str(two_step_user.pk)},
         follow=True,
     )
 
     assert response.status_code == 200
     assert "Cleared two-step verification for 1 user." in response.content.decode()
-    assert not Authenticator.objects.filter(user=second_step_user).exists()
-    assert sent == [("authenticators_cleared", second_step_user, it)]
+    assert not Authenticator.objects.filter(user=two_step_user).exists()
+    assert sent == [("authenticators_cleared", two_step_user, it)]
 
-    response = sign_in(Client(), second_step_user.email, PASSWORD)
+    response = sign_in(Client(), two_step_user.email, PASSWORD)
 
     assert response.status_code == 401
-    assert {"id": "second_step_setup", "is_pending": True} in response.json()["data"]["flows"]
+    assert {"id": "two_step_setup", "is_pending": True} in response.json()["data"]["flows"]
 
 
 def test_the_admin_removes_the_microsoft_link_and_the_next_sign_in_links_again(
@@ -549,7 +550,7 @@ def test_inviting_an_existing_email_is_a_form_error(it_client):
     assert get_user_model().objects.filter(email__iexact="jane.doe@example.org").count() == 1
 
 
-def test_clearing_a_user_with_no_second_step_changes_nothing(user, sent):
+def test_clearing_a_user_without_two_step_verification_changes_nothing(user, sent):
     assert services.clear_authenticators(user) is False
     assert sent == []
 

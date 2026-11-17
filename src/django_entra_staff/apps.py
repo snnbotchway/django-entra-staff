@@ -24,7 +24,7 @@ class EntraStaffConfig(AppConfig):
             from django.contrib import admin
 
             # The admin sign-in goes through the same allauth flows as the App
-            # (Microsoft sign-in, or password plus the Second step), so the
+            # (Microsoft sign-in, or password plus two-step verification), so the
             # admin is not a weaker way in.
             admin.site.login = secure_admin_site_login(admin.site)
             admin.site.password_change = refuse_for_microsoft_linked(admin.site.password_change)
@@ -35,8 +35,8 @@ def secure_admin_site_login(site):
 
     allauth's `secure_admin_login` sends a signed-out person to the App's sign-in, but lets a
     signed-in User through to Django's login form, which signs in whoever's password it is
-    given, with no Second step and no attempt limit. A signed-in User goes to the site's index if
-    the site lets them in, and is refused otherwise.
+    given, with no two-step verification and no attempt limit. A signed-in User goes to the
+    site's index if the site lets them in, and is refused otherwise.
     """
     from allauth.account.decorators import secure_admin_login
 

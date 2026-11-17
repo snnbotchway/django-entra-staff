@@ -5,15 +5,15 @@ from allauth.mfa.models import Authenticator
 from allauth.mfa.stages import AuthenticateStage as AllauthAuthenticateStage
 from allauth.mfa.utils import is_mfa_enabled
 
-SECOND_STEP_TYPES = [Authenticator.Type.TOTP, Authenticator.Type.WEBAUTHN]
+TWO_STEP_TYPES = [Authenticator.Type.TOTP, Authenticator.Type.WEBAUTHN]
 
 # The `method` allauth records for a sign-in through a provider; allauth has no
 # constant of its own for it.
 SOCIAL_SIGN_IN_METHOD = "socialaccount"
 
 
-class SecondStepAuthenticateStage(AllauthAuthenticateStage):
-    """The Second step is a Password sign-in rule: Microsoft sign-in is never
+class TwoStepAuthenticateStage(AllauthAuthenticateStage):
+    """Two-step verification is a Password sign-in rule: Microsoft sign-in is never
     asked for it, because Entra already runs its own checks."""
 
     def _should_handle(self, request):
@@ -35,15 +35,15 @@ class PasswordSignInStage(LoginStage):
         raise NotImplementedError
 
 
-class SecondStepSetupStage(PasswordSignInStage):
-    """A User without a Second step is taken through authenticator set-up
+class TwoStepSetupStage(PasswordSignInStage):
+    """A User without two-step verification is taken through authenticator set-up
     before the sign-in opens it."""
 
-    key = "second_step_setup"
-    urlname = "second_step_setup"
+    key = "two_step_setup"
+    urlname = "two_step_setup"
 
     def is_needed(self, user):
-        return not is_mfa_enabled(user, SECOND_STEP_TYPES)
+        return not is_mfa_enabled(user, TWO_STEP_TYPES)
 
 
 class ReplacePasswordStage(PasswordSignInStage):

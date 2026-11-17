@@ -4,14 +4,14 @@ from allauth.mfa import app_settings as mfa_settings
 from allauth.mfa.models import Authenticator
 from django.urls import include, path
 
-from .stages import ReplacePasswordStage, SecondStepSetupStage
+from .stages import ReplacePasswordStage, TwoStepSetupStage
 from .views import (
     GuardedManageEmailView,
     GuardedManageTOTPView,
     GuardedManageWebAuthnView,
     ReplacePasswordView,
-    SecondStepSetupView,
-    SecondStepWebAuthnSetupView,
+    TwoStepSetupView,
+    TwoStepWebAuthnSetupView,
 )
 
 
@@ -20,12 +20,12 @@ def _client_patterns(client):
     allauth endpoints they must police, so they come before allauth's include."""
     prefix = "browser/v1" if client == Client.BROWSER else "app/v1"
     suffix = "" if client == Client.BROWSER else "_app"
-    setup_urlname = f"{SecondStepSetupStage.urlname}{suffix}"
+    setup_urlname = f"{TwoStepSetupStage.urlname}{suffix}"
     replace_urlname = f"{ReplacePasswordStage.urlname}{suffix}"
     patterns = [
         path(
             f"{prefix}/auth/2fa/setup",
-            SecondStepSetupView.as_api_view(client=client),
+            TwoStepSetupView.as_api_view(client=client),
             name=setup_urlname,
         ),
         path(
@@ -40,7 +40,7 @@ def _client_patterns(client):
             [
                 path(
                     f"{prefix}/auth/2fa/setup/webauthn",
-                    SecondStepWebAuthnSetupView.as_api_view(client=client),
+                    TwoStepWebAuthnSetupView.as_api_view(client=client),
                     name=f"{setup_urlname}_webauthn",
                 ),
                 path(

@@ -91,7 +91,7 @@ def test_the_microsoft_callback_must_be_the_packages():
     assert "entra_staff.E014" in check_ids(ROOT_URLCONF="tests.testapp.urls_allauth_microsoft")
 
 
-def test_webauthn_type_must_be_on_so_a_passkey_can_be_the_second_step():
+def test_webauthn_type_must_be_on_so_a_passkey_can_be_used_for_two_step_verification():
     types = ["recovery_codes", "totp"]
 
     assert "entra_staff.E016" in check_ids(MFA_SUPPORTED_TYPES=types)
@@ -177,7 +177,7 @@ def test_allauths_email_authentication_must_stay_off(overrides):
     assert "entra_staff.E024" in check_ids(**overrides)
 
 
-def test_a_trusted_browser_must_not_skip_the_second_step():
+def test_a_trusted_browser_must_not_skip_two_step_verification():
     assert "entra_staff.E025" in check_ids(MFA_TRUST_ENABLED=True)
 
 

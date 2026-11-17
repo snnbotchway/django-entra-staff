@@ -50,8 +50,8 @@ def link_microsoft(user, uid="uid-1", provider="microsoft"):
 
 
 @pytest.fixture
-def second_step_user(user):
-    """A User that has set up its Second step (TOTP and recovery codes)."""
+def two_step_user(user):
+    """A User that has set up two-step verification (TOTP and recovery codes)."""
     TOTP.activate(user, generate_totp_secret())
     RecoveryCodes.activate(user)
     return user

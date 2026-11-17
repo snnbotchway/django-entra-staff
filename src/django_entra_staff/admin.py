@@ -21,7 +21,7 @@ from django.utils.translation import gettext_lazy as _
 from . import services
 from .conf import get_settings
 from .errors import ErrorCode, StaffError
-from .stages import SECOND_STEP_TYPES
+from .stages import TWO_STEP_TYPES
 
 
 class TemporaryPasswordForm(forms.Form):
@@ -93,7 +93,7 @@ class UserAdmin(auth_admin.UserAdmin):
             {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")},
         ),
         (_("Important dates"), {"fields": ("last_login", "date_joined")}),
-        (_("Sign-in"), {"fields": ("microsoft_link", "password_status", "second_step_status")}),
+        (_("Sign-in"), {"fields": ("microsoft_link", "password_status", "two_step_status")}),
     )
     add_fieldsets = ((None, {"classes": ("wide",), "fields": ("email", "groups")}),)
     readonly_fields = (
@@ -102,7 +102,7 @@ class UserAdmin(auth_admin.UserAdmin):
         "date_joined",
         "microsoft_link",
         "password_status",
-        "second_step_status",
+        "two_step_status",
     )
     list_display = (
         "email",
@@ -111,7 +111,7 @@ class UserAdmin(auth_admin.UserAdmin):
         "access_groups",
         "microsoft_link",
         "password_status",
-        "second_step_status",
+        "two_step_status",
         "is_active",
         "last_sign_in",
     )
@@ -206,9 +206,9 @@ class UserAdmin(auth_admin.UserAdmin):
         return _("Password set")
 
     @admin.display(description=_("Two-step verification status"))
-    def second_step_status(self, user):
+    def two_step_status(self, user):
         held = {authenticator.type for authenticator in user.authenticator_set.all()}
-        return _("Set up") if held.intersection(SECOND_STEP_TYPES) else _("Not set up")
+        return _("Set up") if held.intersection(TWO_STEP_TYPES) else _("Not set up")
 
     @admin.display(description=_("Last sign-in"), ordering="last_login")
     def last_sign_in(self, user):

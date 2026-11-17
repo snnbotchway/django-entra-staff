@@ -161,7 +161,7 @@ def test_connecting_a_microsoft_user_is_refused(microsoft, client, user):
     assert user.has_usable_password()
 
 
-def test_microsoft_sign_in_is_never_asked_for_the_second_step(microsoft, client, user):
+def test_microsoft_sign_in_is_never_asked_for_two_step_verification(microsoft, client, user):
     TOTP.activate(user, generate_totp_secret())
 
     response = microsoft.sign_in(client, email="jane.doe@example.org")

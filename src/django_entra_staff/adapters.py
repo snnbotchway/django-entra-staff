@@ -14,7 +14,7 @@ from .errors import SignInErrorCode as Code
 from .providers.microsoft.views import GuestAccountError
 from .services import has_expired_temporary_password, has_microsoft_link, set_access_groups
 from .signals import microsoft_link_made, user_signed_up_open_to_staff
-from .stages import ReplacePasswordStage, SecondStepAuthenticateStage, SecondStepSetupStage
+from .stages import ReplacePasswordStage, TwoStepAuthenticateStage, TwoStepSetupStage
 
 # The User fields a Microsoft sign-in fills, under the names allauth gives them.
 NAME_FIELDS = ("first_name", "last_name")
@@ -70,16 +70,16 @@ class AccountAdapter(DefaultAccountAdapter):
         stages = super().get_login_stages()
         index = stages.index(dotted_path(AllauthAuthenticateStage))
         stages[index : index + 1] = [
-            dotted_path(SecondStepAuthenticateStage),
-            dotted_path(SecondStepSetupStage),
+            dotted_path(TwoStepAuthenticateStage),
+            dotted_path(TwoStepSetupStage),
             dotted_path(ReplacePasswordStage),
         ]
         return stages
 
 
-def removes_last_second_step(user, authenticators) -> bool:
+def removes_last_two_step_method(user, authenticators) -> bool:
     """Whether removing `authenticators` would leave the User with only
-    recovery codes, so a Password sign-in would have no Second step."""
+    recovery codes, so a Password sign-in would have no two-step verification."""
     remaining = (
         Authenticator.objects.filter(user=user)
         .exclude(type=Authenticator.Type.RECOVERY_CODES)
@@ -90,7 +90,7 @@ def removes_last_second_step(user, authenticators) -> bool:
 
 class MFAAdapter(DefaultMFAAdapter):
     def can_delete_authenticator(self, authenticator):
-        if removes_last_second_step(authenticator.user, [authenticator]):
+        if removes_last_two_step_method(authenticator.user, [authenticator]):
             return False
         return super().can_delete_authenticator(authenticator)
 

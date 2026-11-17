@@ -173,9 +173,9 @@ def give_temporary_password(user, *, acting_user) -> str:
 
 
 def _is_in_use(user) -> bool:
-    """Whether the person has ever signed in, chosen a password or set up a
-    Second step, so a password from someone else would let that someone into a
-    User in use. Each counts on its own: IT can clear a Second step or a
+    """Whether the person has ever signed in, chosen a password or set up
+    two-step verification, so a password from someone else would let that someone into a
+    User in use. Each counts on its own: IT can clear two-step verification or a
     Microsoft link and leave the rest, and a Password reset chooses a password
     without signing in."""
     chose_a_password = user.has_usable_password() and not user.must_replace_password
@@ -217,7 +217,7 @@ def _save_temporary_password(user, password: str, acting_user) -> None:
 @transaction.atomic
 def clear_authenticators(user, *, acting_user=None) -> bool:
     """Remove the User's authenticator, passkeys and recovery codes, so the
-    person sets up a new Second step at their next Password sign-in.
+    person sets up two-step verification again at their next Password sign-in.
 
     Returns whether anything was removed; the signal is sent only then.
     """

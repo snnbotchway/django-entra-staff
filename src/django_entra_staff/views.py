@@ -27,20 +27,20 @@ from allauth.mfa.webauthn.internal.auth import WebAuthn, begin_registration
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from .adapters import removes_last_second_step
+from .adapters import removes_last_two_step_method
 from .errors import SignInErrorCode
 from .services import has_microsoft_link
-from .stages import SECOND_STEP_TYPES, ReplacePasswordStage, SecondStepSetupStage
+from .stages import TWO_STEP_TYPES, ReplacePasswordStage, TwoStepSetupStage
 
 
-class _SecondStepSetupBaseView(AuthenticationStageAPIView):
-    """Set-up of the first Second step, refused once the User has one."""
+class _TwoStepSetupBaseView(AuthenticationStageAPIView):
+    """Set-up of the first two-step verification method, refused once the User has one."""
 
-    stage_class = SecondStepSetupStage
+    stage_class = TwoStepSetupStage
 
     def handle(self, request, *args, **kwargs):
         self.stage = LoginStageController.enter(request, self.stage_class.key)
-        if self.stage and is_mfa_enabled(self.stage.login.user, SECOND_STEP_TYPES):
+        if self.stage and is_mfa_enabled(self.stage.login.user, TWO_STEP_TYPES):
             return ConflictResponse(request)
         return super().handle(request, *args, **kwargs)
 
@@ -48,7 +48,7 @@ class _SecondStepSetupBaseView(AuthenticationStageAPIView):
         return {"user": self.stage.login.user}
 
 
-class SecondStepSetupView(_SecondStepSetupBaseView):
+class TwoStepSetupView(_TwoStepSetupBaseView):
     input_class = {"POST": ActivateTOTPInput}
 
     def get(self, request, *args, **kwargs):
@@ -58,14 +58,12 @@ class SecondStepSetupView(_SecondStepSetupBaseView):
         return APIResponse(request, meta={"secret": secret, "totp_url": totp_url})
 
     def post(self, request, *args, **kwargs):
-        recovery_codes = _activate_totp_second_step(
-            request, self.stage.login.user, self.input.secret
-        )
+        recovery_codes = _activate_totp(request, self.stage.login.user, self.input.secret)
         self.stage.exit()
-        return SecondStepSetupResponse(request, recovery_codes)
+        return TwoStepSetupResponse(request, recovery_codes)
 
 
-class SecondStepWebAuthnSetupView(_SecondStepSetupBaseView):
+class TwoStepWebAuthnSetupView(_TwoStepSetupBaseView):
     input_class = {"POST": AddWebAuthnInput}
 
     def get(self, request, *args, **kwargs):
@@ -77,34 +75,34 @@ class SecondStepWebAuthnSetupView(_SecondStepSetupBaseView):
             validate_can_add_authenticator(self.stage.login.user)
         except ValidationError as error:
             return ErrorResponse(request, status=HTTPStatus.CONFLICT, exception=error)
-        recovery_codes = _activate_passkey_second_step(
+        recovery_codes = _activate_passkey(
             request,
             self.stage.login.user,
             name=self.input.cleaned_data["name"],
             credential=self.input.cleaned_data["credential"],
         )
         self.stage.exit()
-        return SecondStepSetupResponse(request, recovery_codes)
+        return TwoStepSetupResponse(request, recovery_codes)
 
 
-def _activate_totp_second_step(request, user, secret):
+def _activate_totp(request, user, secret):
     def add():
         totp_auth = TOTP.activate(user, secret).instance
         clear_totp_secret(request)
         return totp_auth
 
-    return _activate_first_second_step(request, user, add, "mfa/email/totp_activated")
+    return _activate_first_two_step_method(request, user, add, "mfa/email/totp_activated")
 
 
-def _activate_passkey_second_step(request, user, name, credential):
+def _activate_passkey(request, user, name, credential):
     def add():
         return WebAuthn.add(user, name, credential).instance
 
-    return _activate_first_second_step(request, user, add, "mfa/email/webauthn_added")
+    return _activate_first_two_step_method(request, user, add, "mfa/email/webauthn_added")
 
 
-def _activate_first_second_step(request, user, add, notification_template):
-    """Add the first Second step with its recovery codes, tell the person, and
+def _activate_first_two_step_method(request, user, add, notification_template):
+    """Add the first two-step verification method with its recovery codes, tell the person, and
     record the sign-in as authenticated by it. Returns the recovery codes."""
     with transaction.atomic():
         authenticator = add()
@@ -115,7 +113,7 @@ def _activate_first_second_step(request, user, add, notification_template):
 
 
 def _activate_recovery_codes(request, user, added):
-    """Recovery codes come with the first Second step, whichever kind it is."""
+    """Recovery codes come with the first two-step verification method, whichever kind it is."""
     with transaction.atomic():
         had_recovery_codes = Authenticator.objects.filter(
             user=user, type=Authenticator.Type.RECOVERY_CODES
@@ -144,16 +142,17 @@ def _cannot_delete_response(request):
 
 
 class GuardedManageWebAuthnView(ManageWebAuthnView):
-    """allauth's passkey management, refusing to remove the last Second step."""
+    """allauth's passkey management, refusing to remove the last two-step verification method."""
 
     def delete(self, request, *args, **kwargs):
-        if removes_last_second_step(request.user, self.input.cleaned_data["authenticators"]):
+        if removes_last_two_step_method(request.user, self.input.cleaned_data["authenticators"]):
             return _cannot_delete_response(request)
         return super().delete(request, *args, **kwargs)
 
 
 class GuardedManageTOTPView(ManageTOTPView):
-    """allauth's authenticator management, refusing to remove the last Second step."""
+    """allauth's authenticator management, refusing to remove the last two-step
+    verification method."""
 
     def delete(self, request, *args, **kwargs):
         authenticator = self._get_authenticator()
@@ -212,7 +211,7 @@ class GuardedManageEmailView(ManageEmailView):
         return ErrorResponse(self.request, status=HTTPStatus.FORBIDDEN, exception=error)
 
 
-class SecondStepSetupResponse(BaseAuthenticationResponse):
+class TwoStepSetupResponse(BaseAuthenticationResponse):
     """The sign-in outcome plus the one-time recovery codes the person must keep."""
 
     def __init__(self, request, recovery_codes):

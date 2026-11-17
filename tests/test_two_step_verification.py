@@ -23,8 +23,8 @@ def user():
     return get_user_model().objects.create_user("jane.doe@example.org", PASSWORD)
 
 
-def test_sign_in_is_unfinished_until_a_valid_code(client, second_step_user):
-    response = sign_in(client, second_step_user.email, PASSWORD)
+def test_sign_in_is_unfinished_until_a_valid_code(client, two_step_user):
+    response = sign_in(client, two_step_user.email, PASSWORD)
 
     assert response.status_code == 401
     assert {
@@ -43,19 +43,19 @@ def test_sign_in_is_unfinished_until_a_valid_code(client, second_step_user):
 
     response = client.post(
         f"{API}/auth/2fa/authenticate",
-        {"code": totp_code(totp_secret_of(second_step_user))},
+        {"code": totp_code(totp_secret_of(two_step_user))},
         content_type="application/json",
     )
 
     assert response.status_code == 200
-    assert response.json()["data"]["user"]["email"] == second_step_user.email
+    assert response.json()["data"]["user"]["email"] == two_step_user.email
     assert is_signed_in(client)
 
 
-def test_each_recovery_code_works_once_only(client, second_step_user):
-    codes = recovery_codes_of(second_step_user)
+def test_each_recovery_code_works_once_only(client, two_step_user):
+    codes = recovery_codes_of(two_step_user)
 
-    sign_in(client, second_step_user.email, PASSWORD)
+    sign_in(client, two_step_user.email, PASSWORD)
     response = client.post(
         f"{API}/auth/2fa/authenticate", {"code": codes[0]}, content_type="application/json"
     )
@@ -64,7 +64,7 @@ def test_each_recovery_code_works_once_only(client, second_step_user):
     assert is_signed_in(client)
 
     client.logout()
-    sign_in(client, second_step_user.email, PASSWORD)
+    sign_in(client, two_step_user.email, PASSWORD)
     response = client.post(
         f"{API}/auth/2fa/authenticate", {"code": codes[0]}, content_type="application/json"
     )
@@ -80,11 +80,11 @@ def test_each_recovery_code_works_once_only(client, second_step_user):
     assert is_signed_in(client)
 
 
-def test_user_without_second_step_is_taken_through_set_up(client, user):
+def test_user_without_two_step_verification_is_taken_through_set_up(client, user):
     response = sign_in(client, user.email, PASSWORD)
 
     assert response.status_code == 401
-    assert {"id": "second_step_setup", "is_pending": True} in response.json()["data"]["flows"]
+    assert {"id": "two_step_setup", "is_pending": True} in response.json()["data"]["flows"]
     assert not is_signed_in(client)
 
     response = client.get(f"{API}/auth/2fa/setup")
@@ -113,7 +113,7 @@ def test_user_without_second_step_is_taken_through_set_up(client, user):
     assert Authenticator.objects.filter(user=user, type=Authenticator.Type.RECOVERY_CODES).exists()
 
 
-def test_the_set_up_second_step_is_required_at_the_next_sign_in(client, user):
+def test_two_step_verification_once_set_up_is_required_at_the_next_sign_in(client, user):
     sign_in(client, user.email, PASSWORD)
     secret = client.get(f"{API}/auth/2fa/setup").json()["meta"]["secret"]
     client.post(
@@ -130,7 +130,7 @@ def test_the_set_up_second_step_is_required_at_the_next_sign_in(client, user):
         "is_pending": True,
         "types": ["recovery_codes", "totp"],
     } in flows
-    assert not any(flow.get("id") == "second_step_setup" for flow in flows)
+    assert not any(flow.get("id") == "two_step_setup" for flow in flows)
 
     response = client.post(
         f"{API}/auth/2fa/authenticate",
@@ -155,7 +155,7 @@ def test_a_half_finished_sign_in_cannot_reach_other_endpoints(client, user):
     assert not is_signed_in(client)
 
 
-def test_set_up_refuses_when_the_second_step_already_exists(client, user):
+def test_set_up_refuses_when_two_step_verification_already_exists(client, user):
     sign_in(client, user.email, PASSWORD)
     TOTP.activate(user, generate_totp_secret())
 

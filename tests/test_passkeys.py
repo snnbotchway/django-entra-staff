@@ -86,7 +86,7 @@ def test_set_up_with_a_passkey_opens_the_user(client, user):
     response = sign_in(client, user.email, PASSWORD)
 
     assert response.status_code == 401
-    assert {"id": "second_step_setup", "is_pending": True} in response.json()["data"]["flows"]
+    assert {"id": "two_step_setup", "is_pending": True} in response.json()["data"]["flows"]
     assert not is_signed_in(client)
 
     key, response = register_passkey(client, "Laptop")
@@ -102,7 +102,7 @@ def test_set_up_with_a_passkey_opens_the_user(client, user):
     assert Authenticator.objects.filter(user=user, type=Authenticator.Type.RECOVERY_CODES).exists()
 
 
-def test_the_passkey_is_the_second_step_at_the_next_sign_in(client, user):
+def test_the_passkey_is_used_for_two_step_verification_at_the_next_sign_in(client, user):
     sign_in(client, user.email, PASSWORD)
     key, _ = register_passkey(client, "Laptop")
     client.logout()
@@ -134,7 +134,7 @@ def test_the_passkey_is_the_second_step_at_the_next_sign_in(client, user):
     assert is_signed_in(client)
 
 
-def test_passkey_set_up_refuses_when_a_second_step_already_exists(client, user):
+def test_passkey_set_up_refuses_when_two_step_verification_already_exists(client, user):
     sign_in(client, user.email, PASSWORD)
     TOTP.activate(user, generate_totp_secret())
 
@@ -192,7 +192,7 @@ def test_a_person_can_register_several_named_passkeys(client, passkey_user):
     assert is_signed_in(client)
 
 
-def test_removing_the_last_second_step_is_refused(client, passkey_user):
+def test_removing_the_last_two_step_method_is_refused(client, passkey_user):
     user, key, recovery_codes = passkey_user
     sign_in(client, user.email, PASSWORD)
     authenticate_with_passkey(client, key)
@@ -210,7 +210,7 @@ def test_removing_the_last_second_step_is_refused(client, passkey_user):
     assert Authenticator.objects.filter(user=user, type=Authenticator.Type.WEBAUTHN).exists()
 
 
-def test_one_of_several_second_steps_can_be_removed(client, passkey_user):
+def test_one_of_several_two_step_methods_can_be_removed(client, passkey_user):
     user, key, recovery_codes = passkey_user
     sign_in(client, user.email, PASSWORD)
     authenticate_with_passkey(client, key)
@@ -252,7 +252,7 @@ def test_removing_the_last_totp_is_refused(client, totp_user):
     assert Authenticator.objects.filter(user=totp_user, type=Authenticator.Type.TOTP).exists()
 
 
-def test_the_mfa_adapter_refuses_removing_the_last_second_step(client, totp_user):
+def test_the_mfa_adapter_refuses_removing_the_last_two_step_method(client, totp_user):
     totp = Authenticator.objects.get(user=totp_user, type=Authenticator.Type.TOTP)
 
     assert not get_mfa_adapter().can_delete_authenticator(totp)

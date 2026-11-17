@@ -37,7 +37,7 @@ def temp_password_user():
 
 
 @pytest.fixture
-def second_step(temp_password_user):
+def two_step_verification(temp_password_user):
     TOTP.activate(temp_password_user, generate_totp_secret())
     RecoveryCodes.activate(temp_password_user)
     return temp_password_user
@@ -76,8 +76,8 @@ def test_set_temporary_password_refuses_a_user_with_a_microsoft_link(
     assert temporary_password_events == []
 
 
-@pytest.mark.usefixtures("second_step")
-def test_a_temporary_password_is_replaced_after_the_second_step(client, temp_password_user):
+@pytest.mark.usefixtures("two_step_verification")
+def test_a_temporary_password_is_replaced_after_two_step_verification(client, temp_password_user):
     response = sign_in(client, temp_password_user.email, TEMP_PASSWORD)
 
     assert response.status_code == 401
@@ -112,13 +112,13 @@ def test_a_temporary_password_is_replaced_after_the_second_step(client, temp_pas
     assert temp_password_user.check_password(NEW_PASSWORD)
 
 
-def test_second_step_set_up_comes_before_replacing_the_temporary_password(
+def test_two_step_verification_set_up_comes_before_replacing_the_temporary_password(
     client, temp_password_user
 ):
     response = sign_in(client, temp_password_user.email, TEMP_PASSWORD)
 
     assert response.status_code == 401
-    assert {"id": "second_step_setup", "is_pending": True} in response.json()["data"]["flows"]
+    assert {"id": "two_step_setup", "is_pending": True} in response.json()["data"]["flows"]
 
     secret = client.get(f"{API}/auth/2fa/setup").json()["meta"]["secret"]
     response = client.post(
@@ -141,7 +141,7 @@ def test_second_step_set_up_comes_before_replacing_the_temporary_password(
     assert is_signed_in(client)
 
 
-@pytest.mark.usefixtures("second_step")
+@pytest.mark.usefixtures("two_step_verification")
 def test_the_new_password_must_pass_the_app_s_password_rules(client, temp_password_user):
     sign_in(client, temp_password_user.email, TEMP_PASSWORD)
     client.post(
@@ -198,7 +198,7 @@ def test_an_app_admin_gives_a_new_person_a_temporary_password_to_share(
 
     response = sign_in(client, user.email, password)
     assert response.status_code == 401
-    assert {"id": "second_step_setup", "is_pending": True} in response.json()["data"]["flows"]
+    assert {"id": "two_step_setup", "is_pending": True} in response.json()["data"]["flows"]
     assert [(event["user"], event["acting_user"]) for event in temporary_password_events] == [
         (user, app_admin)
     ]
@@ -210,7 +210,7 @@ def _chose_a_password(user):
     user.save()
 
 
-def _set_up_a_second_step(user):
+def _set_up_two_step_verification(user):
     services.set_temporary_password(user, TEMP_PASSWORD)
     TOTP.activate(user, generate_totp_secret())
 
@@ -225,10 +225,10 @@ def _has_django_admin_access(user):
     [
         (link_microsoft, "microsoft_linked"),
         (_chose_a_password, "user_in_use"),
-        (_set_up_a_second_step, "user_in_use"),
+        (_set_up_two_step_verification, "user_in_use"),
         (_has_django_admin_access, "django_admin_access"),
     ],
-    ids=["microsoft-link", "own-password", "second-step", "django-admin-access"],
+    ids=["microsoft-link", "own-password", "two-step-verification", "django-admin-access"],
 )
 def test_an_app_admin_cannot_give_a_password_into_someone_else_s_account(
     app_admin, temporary_password_events, make, code
