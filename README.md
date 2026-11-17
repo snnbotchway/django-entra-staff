@@ -286,6 +286,15 @@ All text the package shows goes through Django translation, and no wording names
 - **Emails** (Password reset, and allauth's notices when an authenticator or passkey is added or removed) are allauth's templates, `account/email/*` and `mfa/email/*`. Override one by adding a template with the same name in a template directory listed in `TEMPLATES["DIRS"]`, which Django searches before installed apps.
 - The Temporary password form in the Django admin is the only template the package ships (see above).
 
+## Upgrading from 0.6
+
+0.7 calls the extra proof after the password "two-step verification" instead of "Second step". Nothing changes in how sign-in works, but these names change, with nothing kept under the old ones:
+
+- **Sign-in flow id.** The pending flow `second_step_setup` is now `two_step_setup`, in `data.flows` and as the stage's URL name. Update a frontend that matches on it.
+- **Admin.** The `UserAdmin` field `second_step_status` is now `two_step_status`; rename it where your own `UserAdmin` subclass lists it. The column, the action ("Clear two-step verification") and its messages use the new wording.
+- **Python names**, if you import them: in `django_entra_staff.stages`, `SECOND_STEP_TYPES` → `TWO_STEP_TYPES`, `SecondStepAuthenticateStage` → `TwoStepAuthenticateStage`, `SecondStepSetupStage` → `TwoStepSetupStage`; in `django_entra_staff.views`, `SecondStepSetupView` → `TwoStepSetupView`, `SecondStepWebAuthnSetupView` → `TwoStepWebAuthnSetupView`, `SecondStepSetupResponse` → `TwoStepSetupResponse`; in `django_entra_staff.adapters`, `removes_last_second_step` → `removes_last_two_step_method`.
+- **Translations.** The admin and system-check messages that said "Second step" have new source strings; translate them again in your locale catalog.
+
 ## Upgrading from 0.5
 
 0.6 removes `GROUP_MODE`: Access groups always add up, so a User may hold several, or none ([ADR 0011](docs/adr/0011-access-groups-always-add-up.md)). Delete `GROUP_MODE` from `ENTRA_STAFF` and stop importing `GroupMode` or `SettingKey.GROUP_MODE` from `django_entra_staff.conf`, which no longer exist. A leftover `GROUP_MODE` key fails the `entra_staff.E002` system check, and every settings read raises `ImproperlyConfigured`, so the App cannot run with it. If your App gave each person one Access group, make your own screens and checks read the groups they need. The error code `exclusive_needs_one_group` is gone.
