@@ -315,7 +315,7 @@ def test_the_admin_clears_authenticators_so_the_next_sign_in_sets_up_again(
     )
 
     assert response.status_code == 200
-    assert "Cleared the Second step for 1 user." in response.content.decode()
+    assert "Cleared two-step verification for 1 user." in response.content.decode()
     assert not Authenticator.objects.filter(user=second_step_user).exists()
     assert sent == [("authenticators_cleared", second_step_user, it)]
 
@@ -359,7 +359,7 @@ def test_the_admin_removes_the_microsoft_link_and_the_next_sign_in_links_again(
     ("action", "warning"),
     [
         ("remove_microsoft_link", "None of the selected users had a Microsoft link."),
-        ("clear_authenticators", "None of the selected users had a Second step to clear."),
+        ("clear_authenticators", "None of the selected users had two-step verification set up."),
         ("unblock_users", "None of the selected users were blocked."),
     ],
 )

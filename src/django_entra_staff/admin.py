@@ -205,7 +205,7 @@ class UserAdmin(auth_admin.UserAdmin):
             return _("Temporary password")
         return _("Password set")
 
-    @admin.display(description=_("Second step status"))
+    @admin.display(description=_("Two-step verification status"))
     def second_step_status(self, user):
         held = {authenticator.type for authenticator in user.authenticator_set.all()}
         return _("Set up") if held.intersection(SECOND_STEP_TYPES) else _("Not set up")
@@ -291,7 +291,7 @@ class UserAdmin(auth_admin.UserAdmin):
         request.current_app = self.admin_site.name
         return TemplateResponse(request, self.set_temporary_password_template, context)
 
-    @admin.action(description=_("Clear the Second step"))
+    @admin.action(description=_("Clear two-step verification"))
     def clear_authenticators(self, request, queryset):
         count = sum(
             services.clear_authenticators(user, acting_user=request.user) for user in queryset
@@ -299,8 +299,8 @@ class UserAdmin(auth_admin.UserAdmin):
         self._report(
             request,
             count,
-            _("Cleared the Second step for %(count)d %(items)s."),
-            _("None of the selected users had a Second step to clear."),
+            _("Cleared two-step verification for %(count)d %(items)s."),
+            _("None of the selected users had two-step verification set up."),
         )
 
     @admin.action(description=_("Remove the Microsoft link"))

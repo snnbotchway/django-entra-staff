@@ -211,14 +211,16 @@ def check_settings(app_configs, **kwargs):
     if Authenticator.Type.WEBAUTHN not in mfa_settings.SUPPORTED_TYPES:
         errors.append(
             Error(
-                "MFA_SUPPORTED_TYPES must include 'webauthn' so a passkey can be the Second step.",
+                "MFA_SUPPORTED_TYPES must include 'webauthn' so a passkey can be used for"
+                " two-step verification.",
                 id=CheckId.WEBAUTHN_TYPE_NOT_ON.value,
             )
         )
     if mfa_settings.PASSKEY_LOGIN_ENABLED:
         errors.append(
             Error(
-                "MFA_PASSKEY_LOGIN_ENABLED must stay off: a passkey is only ever the Second step.",
+                "MFA_PASSKEY_LOGIN_ENABLED must stay off: a passkey is only ever used for"
+                " two-step verification.",
                 id=CheckId.PASSKEY_LOGIN_ON.value,
             )
         )
@@ -242,7 +244,7 @@ def _allauth_path_errors():
         errors.append(
             Error(
                 "HEADLESS_ONLY must be True: allauth's own pages skip the package's"
-                " sign-in and Second step guards.",
+                " sign-in and two-step verification guards.",
                 id=CheckId.ALLAUTH_PAGES_ON.value,
             )
         )
@@ -257,7 +259,7 @@ def _allauth_path_errors():
         errors.append(
             Error(
                 "ACCOUNT_LOGIN_BY_CODE_ENABLED must stay off: an emailed code would sign"
-                " in without the password, the Second step or the Microsoft link check.",
+                " in without the password, two-step verification or the Microsoft link check.",
                 id=CheckId.LOGIN_BY_CODE_ON.value,
             )
         )
@@ -298,7 +300,8 @@ def _allauth_setting_errors():
     if mfa_settings.TRUST_ENABLED:
         errors.append(
             Error(
-                "MFA_TRUST_ENABLED must stay off: a trusted browser would skip the Second step.",
+                "MFA_TRUST_ENABLED must stay off: a trusted browser would skip"
+                " two-step verification.",
                 id=CheckId.MFA_TRUST_ON.value,
             )
         )
