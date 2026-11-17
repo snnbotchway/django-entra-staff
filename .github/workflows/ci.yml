@@ -1,9 +1,12 @@
 name: CI
 
 on:
+  # A change that touches only docs runs no checks. No code reads these files.
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/**', '.scratch/**']
   pull_request:
+    paths-ignore: ['**.md', 'docs/**', '.scratch/**']
 
 permissions:
   contents: read
