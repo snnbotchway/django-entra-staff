@@ -28,16 +28,16 @@ _Avoid_: Entra identity, social account
 What an App does when someone with no User completes Microsoft sign-in: refuse them (**Invite only**, the default) or make them a User with only the App's Lowest access (**Open to staff**).
 _Avoid_: Auto-provisioning, registration
 
-**Second step**:
-The extra proof, after the password, that a Password sign-in needs before it opens the User: a code from an authenticator app, a passkey, or a one-time recovery code. A passkey is only ever a Second step, never a way to sign in on its own. Microsoft sign-in has no Second step in the App because Microsoft already asks for one.
-_Avoid_: 2FA, OTP (when meaning the whole step)
+**Two-step verification**:
+The extra proof, after the password, that a Password sign-in needs before it opens the User: a code from an authenticator app, a passkey, or a one-time recovery code. Each of these is a two-step verification method. A passkey is only ever used for two-step verification, never as a way to sign in on its own. Microsoft sign-in has no two-step verification in the App because Microsoft already asks for it.
+_Avoid_: Second step, 2FA, OTP (when meaning the whole step)
 
 **Temporary password**:
 A password set on a User by IT, or given by an App admin to someone who has not used their User yet. The person must replace it at their next Password sign-in, and it stops working after a set time.
 _Avoid_: Default password, initial password
 
 **Password reset**:
-A person choosing a new password through an emailed link. Only a User that already has a password can use it, and the Second step is still needed afterwards.
+A person choosing a new password through an emailed link. Only a User that already has a password can use it, and two-step verification is still needed afterwards.
 _Avoid_: Forgot password (in code and docs; fine as on-screen wording)
 
 ## Access

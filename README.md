@@ -2,10 +2,10 @@
 
 Sign-in for internal Django apps whose staff use Microsoft Entra: Microsoft sign-in for one tenant, Password sign-in with a required authenticator code for everyone else, and access through Django groups. Built on [django-allauth](https://allauth.org).
 
-The rules are in [`GLOSSARY.md`](GLOSSARY.md) (the words this README uses, such as User and Second step) and [`docs/adr/`](docs/adr/). In short:
+The rules are in [`GLOSSARY.md`](GLOSSARY.md) (the words this README uses, such as User and two-step verification) and [`docs/adr/`](docs/adr/). In short:
 
 - A person's first Microsoft sign-in links their User by work email. From then on the link is the identity, the password is removed and Password sign-in is refused for good ([ADR 0002](docs/adr/0002-no-password-once-microsoft-linked.md)).
-- Password sign-in always ends with a Second step: an authenticator code, a passkey or a recovery code. A passkey never signs anyone in on its own.
+- Password sign-in always ends with two-step verification: an authenticator code, a passkey or a recovery code. A passkey never signs anyone in on its own.
 - Nobody creates a User with a password. People get in by invitation, or by Microsoft sign-in if the App is Open to staff.
 - The package ships no sign-in screens. The App builds them on allauth's headless API.
 
@@ -184,7 +184,7 @@ from .models import User
 admin.site.register(User, UserAdmin)
 ```
 
-The package's `UserAdmin` is Django's `django.contrib.auth.admin.UserAdmin` fitted to the package's rules, so it looks and works like the user admin IT already knows. The list shows email, first and last name, Access groups, Microsoft link, password status, Second step status, Active and last sign-in, with Django's filters (Django admin access, superuser, Active, groups) and search by email or name. The change page keeps `UserAdmin`'s sections (Personal info, Permissions, Important dates) and adds a read-only Sign-in section: Microsoft link, password status and Second step status. The email is read-only once the User exists. The admin labels the model "user" and "users", as Django does; to use another name, set `verbose_name` and `verbose_name_plural` in your User's `Meta`.
+The package's `UserAdmin` is Django's `django.contrib.auth.admin.UserAdmin` fitted to the package's rules, so it looks and works like the user admin IT already knows. The list shows email, first and last name, Access groups, Microsoft link, password status, two-step verification status, Active and last sign-in, with Django's filters (Django admin access, superuser, Active, groups) and search by email or name. The change page keeps `UserAdmin`'s sections (Personal info, Permissions, Important dates) and adds a read-only Sign-in section: Microsoft link, password status and two-step verification status. The email is read-only once the User exists. The admin labels the model "user" and "users", as Django does; to use another name, set `verbose_name` and `verbose_name_plural` in your User's `Meta`.
 
 There is no password anywhere on it (ADR 0002): no password field, no change-password link, and the `<id>/password/` page refuses. Django's own "Change password" page in the admin header refuses anyone with a Microsoft link. What IT changes goes through the service functions with the signed-in User as `acting_user`, so every rule and signal applies:
 
@@ -192,11 +192,11 @@ There is no password anywhere on it (ADR 0002): no password field, no change-pas
 - **Access groups** is Django's groups picker, offering only the declared Access groups, and is saved with `set_access_groups`. Django groups the App didn't declare are left alone.
 - **Active** unticked blocks the User (`block_user`); ticked again, it unblocks it (`unblock_user`).
 - **Django admin access** and **superuser status** are the User's own `is_staff` and `is_superuser`, set only here and never by Access groups.
-- **Actions** block or unblock the selected Users, set a Temporary password, clear the Second step, and remove a Microsoft link, next to Django's delete.
+- **Actions** block or unblock the selected Users, set a Temporary password, clear two-step verification, and remove a Microsoft link, next to Django's delete.
 
 Subclass `UserAdmin` to add columns or fields. Override the Temporary password form with a template at `django_entra_staff/set_temporary_password.html`.
 
-The admin sign-in page is replaced on the default `admin.site`: it sends people to `LOGIN_URL`, so the admin opens only after Microsoft sign-in or password plus Second step, and a signed-in User goes to the admin index, never to Django's login form. An App with its own `AdminSite` must replace its `login` the same way, before `my_site.urls` is included (the URLs keep the view they were built with):
+The admin sign-in page is replaced on the default `admin.site`: it sends people to `LOGIN_URL`, so the admin opens only after Microsoft sign-in or password plus two-step verification, and a signed-in User goes to the admin index, never to Django's login form. An App with its own `AdminSite` must replace its `login` the same way, before `my_site.urls` is included (the URLs keep the view they were built with):
 
 ```python
 from django_entra_staff.apps import secure_admin_site_login
@@ -219,17 +219,17 @@ The App's frontend calls allauth's headless browser API under `/_allauth/browser
 | `POST auth/login` | Password sign-in (email, password). A User with a Microsoft link gets `use_microsoft_signin`, and an expired Temporary password gets `temporary_password_expired`, but only when the password was right; otherwise the ordinary `email_password_mismatch`. |
 | `POST auth/provider/redirect` | Start Microsoft sign-in (`provider`: `microsoft`, `callback_url`, `process`: `login`), as a form post. |
 | `POST auth/password/request`, `POST auth/password/reset` | Password reset. The request answers the same whether or not the email exists or can be reset. |
-| `POST auth/2fa/authenticate` | Second step with an authenticator code or a recovery code. |
-| `GET`, `POST auth/webauthn/authenticate` | Second step with a passkey. |
-| `GET`, `POST auth/2fa/setup` | Set up the first Second step with an authenticator (`GET` returns the secret, `POST` the code). The response carries the recovery codes. |
-| `GET`, `POST auth/2fa/setup/webauthn` | Set up the first Second step with a passkey. Also returns recovery codes. |
+| `POST auth/2fa/authenticate` | Two-step verification with an authenticator code or a recovery code. |
+| `GET`, `POST auth/webauthn/authenticate` | Two-step verification with a passkey. |
+| `GET`, `POST auth/2fa/setup` | Set up two-step verification with an authenticator (`GET` returns the secret, `POST` the code). The response carries the recovery codes. |
+| `GET`, `POST auth/2fa/setup/webauthn` | Set up two-step verification with a passkey. Also returns recovery codes. |
 | `POST auth/password/replace` | Replace a Temporary password (`new_password`). |
 | `GET auth/session` | Whether the person is signed in, and which flows are pending. |
-| `account/authenticators/...` | Manage authenticators and passkeys once signed in. Removing the last Second step is refused with `cannot_delete_authenticator`. |
+| `account/authenticators/...` | Manage authenticators and passkeys once signed in. Removing the last two-step verification method is refused with `cannot_delete_authenticator`. |
 | `POST account/password/change` | Set or change the password once signed in. Refused with `use_microsoft_signin` for a User with a Microsoft link, as is completing a Password reset for one. |
 | `DELETE account/providers` | Refused with `disconnect_not_supported` for the Microsoft link. Only IT removes it, through `remove_microsoft_link`. |
 
-After a correct password the response is `401` with `data.flows` listing what is pending, in this fixed order: `mfa_authenticate` or `second_step_setup`, then `replace_password`. The sign-in is complete only when none is pending. Other endpoints refuse a half-finished sign-in. Microsoft sign-in has none of these steps.
+After a correct password the response is `401` with `data.flows` listing what is pending, in this fixed order: `mfa_authenticate` or `two_step_setup`, then `replace_password`. The sign-in is complete only when none is pending. Other endpoints refuse a half-finished sign-in. Microsoft sign-in has none of these steps.
 
 ## Service functions
 
@@ -241,7 +241,7 @@ Use these from the App's own screens, commands and tests, never the models and a
 | `set_access_groups(user, access_groups, *, acting_user=None)` | Replaces the User's Access groups. |
 | `block_user(user, *, acting_user=None)`, `unblock_user(...)` | Stops and restores sign-in. |
 | `set_temporary_password(user, password, *, acting_user=None)` | For the Django admin only. Refused for a linked User. |
-| `give_temporary_password(user, *, acting_user)` | For an App admin's screens. Makes a random Temporary password, saves it and returns it once, for the App admin to share. Refused for a linked User (`microsoft_linked`), for a person who has ever signed in, chosen a password or set up a Second step (`user_in_use`), and for a User with Django admin access (`django_admin_access`). Your screen decides who may call it. The password is four groups of five lowercase letters and digits joined by hyphens; if your `AUTH_PASSWORD_VALIDATORS` refuse that, it raises `ImproperlyConfigured`. |
+| `give_temporary_password(user, *, acting_user)` | For an App admin's screens. Makes a random Temporary password, saves it and returns it once, for the App admin to share. Refused for a linked User (`microsoft_linked`), for a person who has ever signed in, chosen a password or set up two-step verification (`user_in_use`), and for a User with Django admin access (`django_admin_access`). Your screen decides who may call it. The password is four groups of five lowercase letters and digits joined by hyphens; if your `AUTH_PASSWORD_VALIDATORS` refuse that, it raises `ImproperlyConfigured`. |
 | `clear_authenticators(user, *, acting_user=None)` | Removes all authenticators, passkeys and recovery codes; returns whether anything was removed, and sends its signal only then. |
 | `remove_microsoft_link(user, *, acting_user=None)` | Lets the next Microsoft sign-in link again. The User keeps no password. |
 | `has_access_group(user, access_group)` | Whether the User holds the group; `False` when not signed in. |
@@ -271,10 +271,10 @@ They are sent inside the transaction that makes the change, so a receiver that r
 
 ## Passkeys
 
-A passkey is the Second step only. It is tied to the App's own domain, taken from the request host, so a passkey for one App does not work in another. Two things follow:
+A passkey is used only for two-step verification. It is tied to the App's own domain, taken from the request host, so a passkey for one App does not work in another. Two things follow:
 
 - **HTTPS.** Browsers allow passkeys only on HTTPS (`localhost` is fine in development).
-- **Changing the domain.** Existing passkeys stop working if the App moves to a different domain. People fall back on an authenticator code or a recovery code, or IT clears their Second step in the Django admin so they set up a new one.
+- **Changing the domain.** Existing passkeys stop working if the App moves to a different domain. People fall back on an authenticator code or a recovery code, or IT clears their two-step verification in the Django admin so they set it up again.
 
 The package does not call the browser. The App's frontend uses the browser's WebAuthn API and passes the results to the passkey paths above.
 

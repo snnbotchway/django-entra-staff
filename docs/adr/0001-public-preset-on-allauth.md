@@ -1,6 +1,6 @@
 # A public preset on top of django-allauth, not shared private code
 
-Three internal Django apps each wrote their own Microsoft sign-in, Password sign-in and User model, and drifted apart within weeks. We put the shared rules in one public package, `django-entra-staff`, published on PyPI from a personal GitHub user and written fresh rather than copied from the company repos. The package is a thin layer: `django-allauth` does the security-critical work (the Microsoft protocol, token checks, password storage, TOTP, recovery codes, attempt limits and the headless JSON API), and this package adds only the policy: the User model, Access groups, the Sign-up rule, linking by work email once, refusing Password sign-in once linked, requiring the Second step, an admin page, service functions and signals.
+Three internal Django apps each wrote their own Microsoft sign-in, Password sign-in and User model, and drifted apart within weeks. We put the shared rules in one public package, `django-entra-staff`, published on PyPI from a personal GitHub user and written fresh rather than copied from the company repos. The package is a thin layer: `django-allauth` does the security-critical work (the Microsoft protocol, token checks, password storage, TOTP, recovery codes, attempt limits and the headless JSON API), and this package adds only the policy: the User model, Access groups, the Sign-up rule, linking by work email once, refusing Password sign-in once linked, requiring two-step verification, an admin page, service functions and signals.
 
 ## Considered Options
 
